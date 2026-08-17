@@ -1,0 +1,175 @@
+/**
+ * Annotation -> markdown serializer.
+ *
+ * Pure and dependency-free so the browser overlay, the dev server and the MCP
+ * server all emit byte-identical output. Optimised for an agent reading it:
+ * the greppable facts (selector, source, exact text) come first, the cosmetic
+ * detail comes last.
+ */
+
+/**
+ * @param {Record<string, string>} styles
+ * @returns {string}
+ */
+function styleLine(styles) {
+  return Object.entries(styles || {})
+    .map(([k, v]) => `${kebab(k)}: ${v}`)
+    .join('; ');
+}
+
+/** @param {string} s */
+const kebab = (s) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+
+/** @param {any} rect */
+const boxOf = (rect) =>
+  rect ? `${Math.round(rect.width)}×${Math.round(rect.height)} at (${Math.round(rect.pageX ?? rect.x)}, ${Math.round(rect.pageY ?? rect.y)})` : '';
+
+/**
+ * @param {object} target
+ * @returns {string[]} bullet lines describing one target
+ */
+function targetLines(target) {
+  const lines = [];
+
+  if (target.kind === 'region') {
+    lines.push(`- **Target:** screen region ${boxOf(target.rect)}`);
+    if (target.emptyRegion) {
+      lines.push('- **Contents:** empty area — no elements fully inside this region');
+    } else {
+      lines.push('- **Elements inside:**');
+      for (const el of target.elements || []) {
+        const src = el.source ? ` — \`${el.source}\`` : '';
+        lines.push(`  - ${el.label} → \`${el.selector}\`${src}`);
+      }
+    }
+    return lines;
+  }
+
+  lines.push(`- **Element:** \`<${target.tag}>\` ${target.label}`);
+  lines.push(`- **Selector:** \`${target.selector}\``);
+
+  if (target.source) {
+    const qualifier = target.sourceExact ? '' : ' _(nearest stamped ancestor)_';
+    lines.push(`- **Source:** \`${target.source}\`${qualifier}`);
+  }
+  if (target.components?.length) {
+    lines.push(`- **Component path:** ${target.components.join(' › ')}`);
+  }
+  if (target.kind === 'text' && target.selectedText) {
+    lines.push(`- **Selected text:** "${target.selectedText}"`);
+  } else if (target.text) {
+    lines.push(`- **Text:** "${target.text}"`);
+  }
+  if (target.testId) lines.push(`- **Test id:** \`${target.testId}\``);
+
+  lines.push(`- **Box:** ${boxOf(target.rect)}`);
+
+  const styles = styleLine(target.styles);
+  if (styles) lines.push(`- **Computed:** ${styles}`);
+
+  const attrs = Object.entries(target.attributes || {})
+    .filter(([k]) => k !== 'id')
+    .map(([k, v]) => `${k}="${v}"`)
+    .join(' ');
+  if (attrs) lines.push(`- **Attributes:** ${attrs}`);
+
+  if (target.ancestors?.length) {
+    const chain = target.ancestors
+      .map((a) => {
+        const name = a.component
+          ? a.component
+          : a.tag + (a.id ? `#${a.id}` : a.classes?.length ? `.${a.classes[0]}` : '');
+        return a.source ? `${name} (\`${a.source}\`)` : name;
+      })
+      .join(' ← ');
+    lines.push(`- **Ancestors:** ${chain}`);
+  }
+
+  if (!target.source) {
+    lines.push(`- **DOM path:** \`${target.domPath}\``);
+  }
+
+  return lines;
+}
+
+/**
+ * Render one annotation.
+ *
+ * @param {object} annotation
+ * @param {number} index 1-based position in the batch
+ * @returns {string}
+ */
+export function annotationToMarkdown(annotation, index = 1) {
+  const heading = annotation.note?.trim()
+    ? `### ${index}. ${annotation.note.trim()}`
+    : `### ${index}. ${annotation.target?.label ?? 'Annotation'}`;
+
+  const lines = [heading, ''];
+
+  if (annotation.id) lines.push(`- **Annotation id:** \`${annotation.id}\``);
+  if (annotation.status && annotation.status !== 'open') {
+    lines.push(`- **Status:** ${annotation.status}`);
+  }
+
+  const targets = annotation.targets?.length ? annotation.targets : [annotation.target];
+  targets.filter(Boolean).forEach((target, i) => {
+    if (targets.length > 1) lines.push(`- **Target ${i + 1}:**`);
+    lines.push(...targetLines(target).map((l) => (targets.length > 1 ? `  ${l}` : l)));
+  });
+
+  if (annotation.replies?.length) {
+    lines.push('- **Thread:**');
+    for (const reply of annotation.replies) {
+      lines.push(`  - _${reply.author}_: ${reply.message}`);
+    }
+  }
+
+  lines.push('');
+  return lines.join('\n');
+}
+
+/**
+ * Render a full batch: page context header + every annotation + a short
+ * instruction block telling the agent what to do with it.
+ *
+ * @param {object[]} annotations
+ * @param {object} page result of pageContext()
+ * @param {{instructions?: boolean}} [options]
+ * @returns {string}
+ */
+export function batchToMarkdown(annotations, page, options = {}) {
+  const { instructions = true } = options;
+  const out = [];
+
+  out.push(`## UI feedback — ${annotations.length} annotation${annotations.length === 1 ? '' : 's'}`);
+  out.push('');
+
+  if (page) {
+    out.push(`- **Page:** ${page.url}`);
+    out.push(
+      `- **Viewport:** ${page.viewport.width}×${page.viewport.height} @${page.devicePixelRatio}x, ${page.colorScheme} mode`,
+    );
+    if (page.framework && page.framework !== 'unknown') {
+      out.push(`- **Framework:** ${page.framework}`);
+    }
+    if (page.scroll && (page.scroll.x || page.scroll.y)) {
+      out.push(`- **Scroll:** ${page.scroll.x}, ${page.scroll.y}`);
+    }
+    out.push('');
+  }
+
+  annotations.forEach((a, i) => out.push(annotationToMarkdown(a, i + 1)));
+
+  if (instructions) {
+    out.push('---');
+    out.push('');
+    out.push(
+      'Locate each element by its **Source** path when present; otherwise grep for the ' +
+        'selector, test id, or quoted text. Coordinates are page coordinates in CSS pixels. ' +
+        'Apply the change described in each heading.',
+    );
+    out.push('');
+  }
+
+  return out.join('\n');
+}

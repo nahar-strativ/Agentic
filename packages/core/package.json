@@ -1,0 +1,28 @@
+{
+  "name": "earmark",
+  "version": "0.1.0",
+  "description": "Click-to-annotate overlay that gives AI coding agents structured context about your UI.",
+  "type": "module",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./markdown": "./src/markdown.js",
+    "./extract": "./src/extract.js",
+    "./selector": "./src/selector.js",
+    "./transport": "./src/transport.js"
+  },
+  "files": [
+    "src"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "annotation",
+    "ai",
+    "agent",
+    "mcp",
+    "devtools",
+    "feedback"
+  ],
+  "license": "MIT"
+}

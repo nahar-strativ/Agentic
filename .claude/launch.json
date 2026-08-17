@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "demo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["examples/serve.js"],
+      "port": 5173
+    },
+    {
+      "name": "broker",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["packages/server/bin/earmark-server.js", "--port", "7331"],
+      "port": 7331
+    }
+  ]
+}

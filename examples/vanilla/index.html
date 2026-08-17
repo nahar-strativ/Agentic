@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>earmark demo</title>
+    <style>
+      :root {
+        --bg: #0f1116;
+        --panel: #171a21;
+        --line: #262b35;
+        --fg: #e8eaef;
+        --dim: #969ca8;
+        --accent: #f97316;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--fg);
+        font: 400 15px/1.6 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      header {
+        padding: 40px 32px 28px;
+        border-bottom: 1px solid var(--line);
+      }
+      h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -0.02em; }
+      header p { margin: 0; color: var(--dim); max-width: 60ch; }
+      main {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 32px;
+        display: grid;
+        gap: 20px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      }
+      .card {
+        padding: 18px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      .card h2 { margin: 0 0 6px; font-size: 15px; letter-spacing: 0.02em; text-transform: uppercase; color: var(--dim); }
+      .metric { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; }
+      .delta { font-size: 13px; color: #34d399; }
+      .delta.down { color: #f87171; }
+      .row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+      button {
+        padding: 7px 13px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--fg);
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      button:hover { border-color: var(--accent); }
+      input {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #0d0f14;
+        color: var(--fg);
+        font: inherit;
+        font-size: 14px;
+      }
+      table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+      th, td { text-align: left; padding: 7px 4px; border-bottom: 1px solid var(--line); }
+      th { color: var(--dim); font-weight: 500; }
+      .spinner {
+        width: 22px; height: 22px; margin-top: 12px;
+        border: 2px solid var(--line); border-top-color: var(--accent);
+        border-radius: 50%; animation: spin 900ms linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .wide { grid-column: 1 / -1; }
+      footer { padding: 24px 32px 80px; color: var(--dim); font-size: 13px; }
+      code { background: #0d0f14; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>earmark demo</h1>
+      <p>
+        Click the arrow in the toolbar (or press <code>alt+a</code>), then click anything here.
+        Shift-click to select several elements. Use the T icon for text, the corners icon to drag a
+        region, and the snowflake to freeze the spinner before annotating it.
+      </p>
+    </header>
+
+    <main>
+      <section class="card" data-testid="revenue-card">
+        <h2>Revenue</h2>
+        <div class="metric">$48,220</div>
+        <div class="delta">+12.4% vs last month</div>
+        <div class="row">
+          <button class="primary" data-testid="export-btn">Export</button>
+          <button>Details</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Churn</h2>
+        <div class="metric">3.1%</div>
+        <div class="delta down">+0.4pp vs last month</div>
+        <div class="row">
+          <button>Investigate</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Search</h2>
+        <input type="search" name="q" placeholder="Filter customers…" aria-label="Filter customers" />
+        <div class="row">
+          <button class="primary">Apply</button>
+          <button>Reset</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Sync status</h2>
+        <p style="margin: 0; color: var(--dim); font-size: 13.5px">Rebuilding index…</p>
+        <div class="spinner"></div>
+      </section>
+
+      <section class="card wide">
+        <h2>Recent signups</h2>
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Plan</th><th>Signed up</th><th>MRR</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Ada Lovelace</td><td>Team</td><td>2 hours ago</td><td>$240</td></tr>
+            <tr><td>Grace Hopper</td><td>Pro</td><td>yesterday</td><td>$90</td></tr>
+            <tr><td>Alan Turing</td><td>Free</td><td>3 days ago</td><td>$0</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <footer>
+      Everything on this page is plain HTML — no framework. earmark still resolves stable selectors,
+      test ids, computed styles and box geometry for each target.
+    </footer>
+
+    <script type="module">
+      import { createEarmark } from '/packages/core/src/index.js';
+
+      const earmark = createEarmark({
+        // Point at the local broker. If nothing is listening the overlay stays
+        // in copy-paste mode and the sync dot goes grey.
+        endpoint: 'http://127.0.0.1:7331',
+        theme: 'dark',
+        onAnnotate: (a) => console.log('[earmark] annotation', a),
+      });
+
+      window.earmark = earmark;
+    </script>
+  </body>
+</html>

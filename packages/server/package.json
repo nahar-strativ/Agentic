@@ -1,0 +1,23 @@
+{
+  "name": "earmark-server",
+  "version": "0.1.0",
+  "description": "Local dev server that brokers earmark annotations between the browser overlay and AI agents.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./store": "./src/store.js",
+    "./http": "./src/http.js"
+  },
+  "bin": {
+    "earmark-server": "./bin/earmark-server.js"
+  },
+  "files": [
+    "src",
+    "bin"
+  ],
+  "dependencies": {
+    "earmark": "0.1.0"
+  },
+  "license": "MIT"
+}
