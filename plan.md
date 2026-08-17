@@ -49,7 +49,7 @@ Consequences of "framework-agnostic vanilla":
 
 ```
 packages/core          earmark              browser overlay (no deps, no build step)
-packages/server        earmark-server       HTTP + SSE broker, JSON persistence
+packages/server        earmark-server       HTTP + SSE broker, json/sqlite store, webhooks
 packages/mcp           earmark-mcp          MCP stdio server (embeds the broker)
 packages/vite-plugin   vite-plugin-earmark  stamps JSX with file:line:col
 examples/vanilla       demo page + static server
@@ -80,6 +80,10 @@ browser click
 | `core/src/picker.js` | Capture-phase input handling for the three pick modes. |
 | `core/src/overlay.js` | Shadow-root UI, annotation state, glue. |
 | `core/src/transport.js` | HTTP + SSE client with backoff. Every failure degrades to copy-paste mode. |
+| `core/src/sourcemap.js` | No-build source resolution: element → line in the served HTML, and matching CSS rules → file:line. |
+| `server/src/persistence.js` | json / sqlite / memory adapters behind one interface. |
+| `server/src/webhooks.js` | Fire-and-forget delivery of annotation events to external services. |
+| `mcp/src/cli.js` | `init` (register in `.mcp.json`) and `doctor` (diagnose the chain). |
 
 ---
 
@@ -228,7 +232,103 @@ files it as an agent reply, so the human sees *what* is being worked on.
 filter for `earmark_list_annotations` and the count in the `resolve` response —
 acknowledged work is outstanding work.
 
-### 4.13 Security posture
+### 4.13 Source resolution without a build step (added 2026-08-17)
+
+The framework-agnostic promise was only half true: earmark **ran** on a plain
+`.html` + `.css` page from day one, but those pages got a selector and nothing
+else, because there is no build to stamp `data-earmark-src`. `sourcemap.js`
+closes that.
+
+**HTML.** Re-fetch the document, parse it with offset tracking, and walk the
+same element-child-index path the live element sits at. The parser is
+deliberately not spec-compliant — it only has to be right about nesting and
+offsets — and **every step is verified against the live tag name**. That check
+is the whole safety story: on an SPA the served HTML is a shell, the walk
+mismatches immediately, and we report nothing rather than a confidently wrong
+line. Browser-inserted `tbody`/`head`/`body` are skipped rather than treated as
+a mismatch.
+
+**CSS.** Walk `document.styleSheets`, keep the rules the element actually
+matches, and map each back to a line. This one is not static-site-specific — a
+`.css` file is a `.css` file, so a Tailwind-free React app benefits too.
+Line numbers come from a hand-rolled scan (CSSOM has no position info) keyed by
+whitespace-normalised selector, with duplicates consumed in source order.
+Inline `<style>` blocks are offset into their host document, so they report
+`index.html:49`, not a phantom file. Cross-origin sheets throw on `.cssRules`
+and are skipped.
+
+A build-time stamp always wins; this only fills the gap. Resolution runs
+**after** the pin is placed and **before** the annotation is pushed, so the UI
+stays instant and the agent never sees an unresolved version.
+
+Two bugs found while wiring it up:
+
+- **CSS Nesting broke the rule walk.** Since nesting shipped, a plain
+  `CSSStyleRule` also exposes `.cssRules` — an *empty* list, which is truthy. The
+  first implementation treated every style rule as a grouping rule and recursed
+  straight past it, matching nothing at all. Now `selectorText` is tested first
+  and recursion requires `length > 0`.
+- **A leading comment stole the line number.** `selectorStart` was not advanced
+  past a comment sitting between rules, so `.late` reported the comment's line.
+
+### 4.14 SQLite persistence (added 2026-08-17)
+
+`--store sqlite` uses `node:sqlite`, built in since Node 22.5 — a real database
+for **zero dependencies**. Writes are incremental (upsert per change) rather than
+a debounced full rewrite, so a crash loses at most the statement in flight.
+
+Persistence sits behind an adapter interface (`persistence.js`) with three
+implementations: `json` (debounced full rewrite, readable, the default),
+`sqlite`, and `memory`. If `node:sqlite` is missing or the file is locked, the
+sqlite adapter **falls back to JSON** rather than losing annotations.
+
+Node's `ExperimentalWarning` for `node:sqlite` is suppressed around the import.
+A dev tool picking a storage backend is not news, and it was corrupting the
+`doctor` report's signal-to-noise.
+
+### 4.15 Webhooks (added 2026-08-17)
+
+`--webhook URL` (repeatable), `EARMARK_WEBHOOK_URL`, `EARMARK_WEBHOOKS`.
+Fire-and-forget with a 5 s timeout, one retry on network errors and 5xx, none on
+4xx. **A hanging endpoint must never stall the annotation loop** — that is the
+tested property.
+
+Only annotation events are delivered. Session bookkeeping (a tab connecting, a
+route being visited) is durable state, not news, and would be pure noise
+downstream.
+
+Security: a webhook sends page URLs, element text and whatever the human typed
+off the machine. Documented in the README rather than made convenient.
+
+### 4.16 `init` and `doctor` (added 2026-08-17)
+
+`earmark-mcp init` merges an entry into the project's `.mcp.json`, preserving
+any other servers already registered.
+
+`earmark-mcp doctor` answers the only question anyone actually asks — *why can't
+the agent see my annotations?* — by checking the chain in order: Node version →
+sqlite availability → MCP registration → broker reachable → browser tab
+connected. Each failing check prints the command that fixes it, and the exit
+code is non-zero so CI can use it. The overlay check is skipped entirely when
+there is no broker to ask, rather than reporting a second confusing failure.
+
+### 4.17 Freezing everything that moves (added 2026-08-17)
+
+The CSS rule alone only stopped animations and transitions declared in a
+stylesheet. Freeze now also pauses through the Web Animations API — which covers
+`element.animate()`, the JS-driven case — and pauses `<video>`/`<audio>`.
+A 500 ms sweep re-pauses anything that starts while frozen. The overlay's own
+toast and highlight transitions are filtered out by target, and everything is
+resumed on unfreeze or `destroy()`.
+
+### 4.18 Priority (added 2026-08-17)
+
+`high` / `normal` / `low`, set in the composer, shown as a chip in the panel and
+a line in the markdown when it is not `normal`. `earmark_list_annotations`
+filters by it and always sorts high-first, so an agent working top-down hits the
+urgent items before the nits.
+
+### 4.19 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
 - Any page in the browser can reach a loopback port, so an optional `--token`
@@ -270,18 +370,23 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
 ### Done and verified
 - [x] Shadow-DOM overlay: toolbar, hover highlight, pins, side panel, toasts, dark/light
 - [x] Four pick modes: element, shift-click multi-select, text selection, drag region
-- [x] Animation freeze
+- [x] Freeze: CSS animations, `element.animate()`, `<video>`, `<audio>` (§4.17)
 - [x] Verified-unique selector generation with hashed-class filtering
 - [x] React / Vue / Angular component-path introspection
 - [x] Markdown serializer
 - [x] Clipboard copy with `execCommand` fallback for non-secure contexts
 - [x] `sessionStorage` persistence + reconnect reconciliation
-- [x] Broker: REST + SSE + long-poll + JSON persistence + optional token
+- [x] Broker: REST + SSE + long-poll + optional token
+- [x] Persistence: json / sqlite / memory behind one adapter (§4.14)
+- [x] Webhooks with timeout and retry (§4.15)
 - [x] MCP: 11 tools, bidirectional ask/answer, acknowledge, resolve, dismiss
+- [x] `earmark-mcp init` and `earmark-mcp doctor` (§4.16)
 - [x] Sessions — one per tab, SPA route tracking, SSE-backed liveness (§4.11)
 - [x] `acknowledged` status with a blue pin (§4.12)
+- [x] Priority: high / normal / low, sorted for the agent (§4.18)
 - [x] Vite plugin: JSX source stamping + auto-inject
-- [x] 53 tests across four suites, all passing
+- [x] **No-build source resolution for plain HTML/CSS pages** (§4.13)
+- [x] 88 tests across seven suites, all passing
 - [x] Live browser verification of the whole loop, both directions:
       click → broker → markdown, and agent question → SSE → amber pin → human
       answer → broker
@@ -294,7 +399,8 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
       users get selectors but no `file:line` unless they add the attribute by
       hand or run a Babel pass.
 - [ ] **Svelte component names.** No reliable runtime hook; relies entirely on
-      build-time stamping, which we do not do for `.svelte` files yet.
+      build-time stamping, which we do not do for `.svelte` files yet. Note that
+      Svelte pages still get CSS rule mapping via §4.13.
 - [ ] **iframes.** The overlay only sees its own document.
 - [ ] **Canvas / WebGL apps.** Nothing to annotate — region mode reports an
       empty area.
@@ -307,16 +413,18 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
 Full read of agentation.com, their repo README and `agentation-mcp`. What they
 have that we do not:
 
-| Theirs | Us | Worth taking? |
+**Every row is now closed except event retention, which we deliberately skipped.**
+
+| Theirs | Us | Status |
 | --- | --- | --- |
-| ~~**Sessions**~~ | **Built** — see §4.11 | Done 2026-08-17 |
-| ~~**`acknowledge`**~~ | **Built** — see §4.12 | Done 2026-08-17 |
-| SQLite store (`AGENTATION_STORE=sqlite\|memory`) | JSON file | Later. JSON is fine at this scale. |
-| Webhooks (`AGENTATION_WEBHOOK_URL`, `AGENTATION_WEBHOOKS`) | None | Later, if anyone asks. |
-| `init` and `doctor` CLI commands | None | `doctor` is nice DX; `earmark_status` already covers most of it. |
-| Freezes **JS animations and videos**, not just CSS | CSS animations/transitions only | Yes — cheap to add (`video.pause()`, Web Animations API `getAnimations()`). |
-| Priority field on feedback | None | Marginal. |
-| Event retention window | None | No. |
+| ~~Sessions~~ | Built — §4.11 | Done |
+| ~~`acknowledge`~~ | Built — §4.12 | Done |
+| ~~SQLite store~~ | Built — §4.14, `--store sqlite` via `node:sqlite`, zero deps | Done |
+| ~~Webhooks~~ | Built — §4.15, `--webhook` / `EARMARK_WEBHOOK[S]` | Done |
+| ~~`init` and `doctor`~~ | Built — §4.16 | Done |
+| ~~Freezes JS animations and videos~~ | Built — §4.17 | Done |
+| ~~Priority field~~ | Built — §4.18 | Done |
+| Event retention window | None | **Skipped.** A dev tool whose store you can delete with `rm -rf .earmark` does not need a retention policy. |
 
 What we have that they do not:
 
@@ -338,9 +446,7 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
 2. **Next.js support** — is that the primary target? If so the Turbopack/Babel
    stamping path moves up the list.
 3. **Distribution** — publish to npm, keep internal to Strativ, or vendor into a
-   specific project?
-4. **Freeze JS animations and videos too?** Currently CSS-only. `getAnimations()`
-   plus pausing `<video>` would close the last small gap against the reference.
+   specific project? All four names are still free.
 
 ---
 
@@ -375,3 +481,14 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   tests. Verified live: session registers and shows `connected: true` off the
   SSE stream, `pushState` navigation appends to `routes`, and an agent
   `acknowledge` turns the pin blue in the browser.
+- **2026-08-17** — Closed **every remaining gap** against the reference product
+  (§6 table): source resolution for build-step-free HTML/CSS pages (§4.13),
+  SQLite persistence (§4.14), webhooks (§4.15), `init`/`doctor` (§4.16),
+  JS-animation and media freeze (§4.17), priority (§4.18). Event retention
+  deliberately skipped. Suite 53 → 88 tests. Two bugs found while building the
+  CSS resolver, both in §4.13: CSS Nesting making every style rule look like a
+  grouping rule, and a leading comment stealing a rule's line number.
+  Verified live on the plain-HTML demo: `index.html:101:11` for the element and
+  four matching CSS rules each with the correct line, webhook delivered to a
+  real listener, sqlite state surviving a broker restart, `doctor` detecting the
+  live broker and connected tab.

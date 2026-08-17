@@ -14,6 +14,7 @@ import {
   rectOf,
 } from './extract.js';
 import { batchToMarkdown } from './markdown.js';
+import { resolveStaticSource, warmSourceCache } from './sourcemap.js';
 
 const ROOT_ID = 'earmark-root';
 const HOST_STYLE_ID = 'earmark-host-css';
@@ -138,6 +139,13 @@ export function createOverlay(config) {
     spellcheck: 'false',
   });
   const popoverTarget = h('div', { class: 'popover-target' });
+  const prioritySelect = h(
+    'select',
+    { class: 'priority', title: 'Priority' },
+    h('option', { value: 'normal' }, 'Normal'),
+    h('option', { value: 'high' }, 'High'),
+    h('option', { value: 'low' }, 'Low'),
+  );
   const popover = h(
     'div',
     { class: 'popover' },
@@ -146,7 +154,8 @@ export function createOverlay(config) {
     h(
       'div',
       { class: 'popover-actions' },
-      h('span', { class: 'hint' }, '⌘↵ save · esc cancel'),
+      prioritySelect,
+      h('span', { class: 'hint' }, '⌘↵ save'),
       h('button', { class: 'btn', onclick: cancelDraft }, 'Cancel'),
       h('button', { class: 'btn btn-primary', onclick: commitDraft }, 'Add'),
     ),
@@ -376,6 +385,7 @@ export function createOverlay(config) {
     if (source) popoverTarget.append(document.createTextNode(`  ${source}`));
 
     noteInput.value = '';
+    prioritySelect.value = 'normal';
     popover.setAttribute('data-open', 'true');
     positionPopover(point);
     hideHighlight();
@@ -398,12 +408,13 @@ export function createOverlay(config) {
     picker.clearPending();
   }
 
-  function commitDraft() {
+  async function commitDraft() {
     if (!draft) return;
     const annotation = {
       id: uid(),
       note: noteInput.value.trim(),
       status: 'open',
+      priority: prioritySelect.value,
       createdAt: new Date().toISOString(),
       page: pageContext(),
       targets: draft.targets,
@@ -415,8 +426,41 @@ export function createOverlay(config) {
     picker.clearPending();
     save();
     render();
+
+    // Source resolution touches the network, so the pin lands first and the
+    // annotation is enriched a moment later — before it is pushed, so the agent
+    // never sees the un-resolved version.
+    await enrichTargets(annotation);
+    save();
     transport?.push([annotation], annotation.page).catch(() => {});
     onAnnotate?.(annotation);
+  }
+
+  /**
+   * Fill in what a build plugin would have stamped, for pages that have no
+   * build step: the element's line in the HTML file, and every CSS rule that
+   * styles it with the file and line that declares it.
+   *
+   * @param {object} annotation
+   */
+  async function enrichTargets(annotation) {
+    await Promise.all(
+      annotation.targets.map(async (target) => {
+        if (!target.selector) return;
+        const el = safeQuery(target.selector);
+        if (!el) return;
+
+        const { html, css } = await resolveStaticSource(el);
+
+        // A build-time stamp is authoritative; only fill the gap.
+        if (html && !target.source) {
+          target.source = `${html.source}:${html.line}:${html.column}`;
+          target.sourceExact = true;
+          target.sourceFrom = 'html';
+        }
+        if (css.length) target.cssRules = css;
+      }),
+    );
   }
 
   noteInput.addEventListener('keydown', (e) => {
@@ -451,12 +495,79 @@ export function createOverlay(config) {
   btnText.addEventListener('click', () => setMode('text'));
   btnRegion.addEventListener('click', () => setMode('region'));
   btnPanel.addEventListener('click', () => togglePanel());
-  btnFreeze.addEventListener('click', () => {
-    frozen = !frozen;
-    btnFreeze.setAttribute('aria-pressed', String(frozen));
-    if (frozen) document.documentElement.setAttribute('data-earmark-frozen', '');
-    else document.documentElement.removeAttribute('data-earmark-frozen');
-  });
+  btnFreeze.addEventListener('click', () => setFrozen(!frozen));
+
+  /** @type {Animation[]} */
+  let pausedAnimations = [];
+  /** @type {HTMLMediaElement[]} */
+  let pausedMedia = [];
+  /** @type {ReturnType<typeof setInterval> | null} */
+  let freezeSweep = null;
+
+  /**
+   * Freeze anything that moves.
+   *
+   * The CSS rule alone only stops CSS animations and transitions declared in a
+   * stylesheet. Pausing through the Web Animations API also catches
+   * `element.animate()` — the JS-driven case — and `<video>`/`<audio>` need
+   * their own pause. A slow sweep re-pauses whatever starts while frozen.
+   *
+   * @param {boolean} on
+   */
+  function setFrozen(on) {
+    frozen = on;
+    btnFreeze.setAttribute('aria-pressed', String(on));
+
+    if (!on) {
+      document.documentElement.removeAttribute('data-earmark-frozen');
+      if (freezeSweep) clearInterval(freezeSweep);
+      freezeSweep = null;
+      for (const animation of pausedAnimations) {
+        try {
+          animation.play();
+        } catch {
+          /* the animation may have been cancelled meanwhile */
+        }
+      }
+      for (const media of pausedMedia) media.play().catch(() => {});
+      pausedAnimations = [];
+      pausedMedia = [];
+      showToast('Resumed');
+      return;
+    }
+
+    document.documentElement.setAttribute('data-earmark-frozen', '');
+    pauseEverything();
+    freezeSweep = setInterval(pauseEverything, 500);
+    freezeSweep.unref?.();
+    showToast('Frozen — animations and media paused');
+  }
+
+  function pauseEverything() {
+    if (typeof document.getAnimations === 'function') {
+      for (const animation of document.getAnimations()) {
+        // Never pause the overlay's own toast and highlight transitions.
+        const target = /** @type {any} */ (animation.effect)?.target;
+        if (target && (target === host || host.contains(target) || target.getRootNode?.() === shadow)) {
+          continue;
+        }
+        if (animation.playState !== 'running') continue;
+        try {
+          animation.pause();
+          pausedAnimations.push(animation);
+        } catch {
+          /* some animations refuse to pause; leave them be */
+        }
+      }
+    }
+
+    for (const media of Array.from(document.querySelectorAll('video, audio'))) {
+      const element = /** @type {HTMLMediaElement} */ (media);
+      if (element.paused || pausedMedia.includes(element)) continue;
+      element.pause();
+      pausedMedia.push(element);
+    }
+  }
 
   /** @param {boolean} [force] */
   function togglePanel(force) {
@@ -560,6 +671,9 @@ export function createOverlay(config) {
           { class: 'item-head' },
           h('div', { class: 'item-index' }, String(index + 1)),
           h('div', { class: 'item-note' }, annotation.note || target.label),
+          annotation.priority && annotation.priority !== 'normal'
+            ? h('span', { class: 'item-priority', 'data-priority': annotation.priority }, annotation.priority)
+            : null,
           h(
             'button',
             {
@@ -796,6 +910,7 @@ export function createOverlay(config) {
   }
 
   render();
+  warmSourceCache();
 
   // ------------------------------------------------------------------ api --
 
@@ -812,6 +927,7 @@ export function createOverlay(config) {
     closePanel: () => togglePanel(false),
     sessionId,
     destroy() {
+      if (frozen) setFrozen(false);
       picker.destroy();
       transport?.destroy();
       unpatchHistory?.();

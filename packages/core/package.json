@@ -10,6 +10,7 @@
     "./markdown": "./src/markdown.js",
     "./extract": "./src/extract.js",
     "./selector": "./src/selector.js",
+    "./sourcemap": "./src/sourcemap.js",
     "./transport": "./src/transport.js"
   },
   "files": [

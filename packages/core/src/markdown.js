@@ -20,6 +20,15 @@ function styleLine(styles) {
 /** @param {string} s */
 const kebab = (s) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 
+/**
+ * @param {string} text
+ * @param {number} max
+ */
+const clip = (text, max) => {
+  const flat = String(text).replace(/\s+/g, ' ').trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+};
+
 /** @param {any} rect */
 const boxOf = (rect) =>
   rect ? `${Math.round(rect.width)}×${Math.round(rect.height)} at (${Math.round(rect.pageX ?? rect.x)}, ${Math.round(rect.pageY ?? rect.y)})` : '';
@@ -49,8 +58,22 @@ function targetLines(target) {
   lines.push(`- **Selector:** \`${target.selector}\``);
 
   if (target.source) {
-    const qualifier = target.sourceExact ? '' : ' _(nearest stamped ancestor)_';
+    const qualifier = target.sourceExact
+      ? target.sourceFrom === 'html'
+        ? ' _(resolved from the served HTML)_'
+        : ''
+      : ' _(nearest stamped ancestor)_';
     lines.push(`- **Source:** \`${target.source}\`${qualifier}`);
+  }
+
+  if (target.cssRules?.length) {
+    lines.push('- **CSS rules that style it:**');
+    for (const rule of target.cssRules) {
+      const where = rule.line ? `${rule.file}:${rule.line}` : rule.file;
+      const condition = rule.condition ? ` \`@media ${rule.condition}\`` : '';
+      lines.push(`  - \`${rule.selector}\` → \`${where}\`${condition}`);
+      if (rule.declarations) lines.push(`    - ${clip(rule.declarations, 240)}`);
+    }
   }
   if (target.components?.length) {
     lines.push(`- **Component path:** ${target.components.join(' › ')}`);
@@ -107,6 +130,9 @@ export function annotationToMarkdown(annotation, index = 1) {
   const lines = [heading, ''];
 
   if (annotation.id) lines.push(`- **Annotation id:** \`${annotation.id}\``);
+  if (annotation.priority && annotation.priority !== 'normal') {
+    lines.push(`- **Priority:** ${annotation.priority}`);
+  }
   if (annotation.status && annotation.status !== 'open') {
     lines.push(`- **Status:** ${annotation.status}`);
   }

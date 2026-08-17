@@ -4,6 +4,10 @@
   "description": "MCP server that lets AI coding agents read, answer and resolve earmark UI annotations.",
   "type": "module",
   "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./cli": "./src/cli.js"
+  },
   "bin": {
     "earmark-mcp": "./bin/earmark-mcp.js"
   },

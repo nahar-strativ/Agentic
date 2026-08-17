@@ -8,8 +8,7 @@
  * annotations, which is what an agent wants to reason about.
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { createAdapter } from './persistence.js';
 
 /** @typedef {'open' | 'acknowledged' | 'needs-input' | 'resolved' | 'dismissed'} Status */
 
@@ -23,14 +22,24 @@ export const STATUSES = ['open', 'acknowledged', 'needs-input', 'resolved', 'dis
 /** Statuses that still represent outstanding work. */
 export const ACTIVE_STATUSES = ['open', 'acknowledged', 'needs-input'];
 
-const WRITE_DEBOUNCE_MS = 250;
+/**
+ * @param {'json' | 'sqlite' | 'memory'} [backend]
+ * @returns {string}
+ */
+function defaultFileFor(backend) {
+  return backend === 'sqlite' ? '.earmark/annotations.db' : '.earmark/annotations.json';
+}
 
 /**
  * @param {object} [options]
- * @param {string} [options.file] path to the JSON persistence file; pass null to disable
+ * @param {string | null} [options.file] persistence path; null keeps everything in memory
+ * @param {'json' | 'sqlite' | 'memory'} [options.store] persistence backend
  */
 export function createStore(options = {}) {
-  const file = options.file === null ? null : resolve(options.file || '.earmark/annotations.json');
+  const adapter = createAdapter({
+    store: options.store,
+    file: options.file === null ? null : options.file || defaultFileFor(options.store),
+  });
 
   /** @type {Map<string, any>} */
   const annotations = new Map();
@@ -42,10 +51,17 @@ export function createStore(options = {}) {
   let waiters = [];
 
   let cursor = 0;
-  /** @type {NodeJS.Timeout | null} */
-  let writeTimer = null;
 
-  /** @param {{type: string, data: any}} event */
+  const snapshot = () => ({
+    cursor,
+    annotations: [...annotations.values()],
+    sessions: [...sessions.values()],
+  });
+
+  /**
+   * Broadcast to SSE subscribers and long-poll waiters, and persist.
+   * @param {{type: string, data: any}} event
+   */
   function emit(event) {
     for (const fn of subscribers) {
       try {
@@ -55,7 +71,16 @@ export function createStore(options = {}) {
       }
     }
     wakeWaiters();
-    schedulePersist();
+    adapter.onChange(event, snapshot);
+  }
+
+  /**
+   * Persist without broadcasting. Session bookkeeping (a tab connecting, a
+   * route being visited) is durable state but not news for the browser.
+   * @param {{type: string, data: any}} change
+   */
+  function record(change) {
+    adapter.onChange(change, snapshot);
   }
 
   function wakeWaiters() {
@@ -73,49 +98,19 @@ export function createStore(options = {}) {
     }
   }
 
-  function schedulePersist() {
-    if (!file) return;
-    if (writeTimer) clearTimeout(writeTimer);
-    writeTimer = setTimeout(persist, WRITE_DEBOUNCE_MS);
-    writeTimer.unref?.();
-  }
-
   async function persist() {
-    if (!file) return;
-    try {
-      await mkdir(dirname(file), { recursive: true });
-      await writeFile(
-        file,
-        JSON.stringify(
-          {
-            cursor,
-            annotations: [...annotations.values()],
-            sessions: [...sessions.values()],
-          },
-          null,
-          2,
-        ),
-      );
-    } catch (error) {
-      process.stderr.write(`earmark: could not persist annotations — ${error.message}\n`);
-    }
+    await adapter.flush();
   }
 
   async function load() {
-    if (!file) return;
-    try {
-      const raw = await readFile(file, 'utf8');
-      const parsed = JSON.parse(raw);
-      cursor = parsed.cursor || 0;
-      for (const annotation of parsed.annotations || []) {
-        annotations.set(annotation.id, annotation);
-      }
-      for (const session of parsed.sessions || []) {
-        // A restored session cannot be connected — no browser is attached yet.
-        sessions.set(session.id, { ...session, connected: false });
-      }
-    } catch {
-      /* no prior state — start empty */
+    const state = await adapter.load();
+    cursor = state.cursor || 0;
+    for (const annotation of state.annotations || []) {
+      annotations.set(annotation.id, annotation);
+    }
+    for (const session of state.sessions || []) {
+      // A restored session cannot be connected — no browser is attached yet.
+      sessions.set(session.id, { ...session, connected: false });
     }
   }
 
@@ -150,7 +145,7 @@ export function createStore(options = {}) {
     if (path && !session.routes.includes(path)) session.routes.push(path);
 
     sessions.set(id, session);
-    if (!existing) emit({ type: 'session.created', data: session });
+    record({ type: existing ? 'session.updated' : 'session.created', data: session });
     return session;
   }
 
@@ -164,6 +159,7 @@ export function createStore(options = {}) {
     session.connected = connected;
     session.lastSeenAt = new Date().toISOString();
     sessions.set(id, session);
+    record({ type: 'session.updated', data: session });
     return session;
   }
 
@@ -355,6 +351,10 @@ export function createStore(options = {}) {
     setSessionConnected,
     listSessions,
     getSession,
+    close: () => adapter.close(),
+    get backend() {
+      return adapter.kind;
+    },
     get sessionCount() {
       return sessions.size;
     },

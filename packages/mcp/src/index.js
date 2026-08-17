@@ -11,7 +11,14 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { createStore, createHttpServer, DEFAULT_PORT, DEFAULT_HOST } from 'earmark-server';
+import {
+  createStore,
+  createHttpServer,
+  attachWebhooks,
+  resolveWebhookUrls,
+  DEFAULT_PORT,
+  DEFAULT_HOST,
+} from 'earmark-server';
 import { batchToMarkdown, annotationToMarkdown } from 'earmark/markdown';
 
 const STATUS_ENUM = ['open', 'acknowledged', 'needs-input', 'resolved', 'dismissed'];
@@ -36,6 +43,11 @@ const TOOLS = [
         session: {
           type: 'string',
           description: 'Only annotations from this browser tab. Get ids from earmark_list_sessions.',
+        },
+        priority: {
+          type: 'string',
+          enum: ['high', 'normal', 'low'],
+          description: 'Only this priority. Omit for all; results are always high-priority first.',
         },
         format: {
           type: 'string',
@@ -186,8 +198,10 @@ const TOOLS = [
  * @param {string | null} [options.token]
  */
 export async function createEarmarkMcp(options = {}) {
-  const store = createStore({ file: options.file });
+  const store = createStore({ file: options.file, store: options.store });
   await store.load();
+
+  const webhooks = attachWebhooks(store, resolveWebhookUrls(options.webhooks), { quiet: true });
 
   const http = createHttpServer(store, {
     port: options.port ?? DEFAULT_PORT,
@@ -250,7 +264,15 @@ export async function createEarmarkMcp(options = {}) {
     switch (name) {
       case 'earmark_list_annotations': {
         const status = args.status?.length ? args.status : ACTIVE_STATUSES;
-        const items = store.list({ status, ...(args.session ? { sessionId: args.session } : {}) });
+        let items = store.list({ status, ...(args.session ? { sessionId: args.session } : {}) });
+
+        if (args.priority) {
+          items = items.filter((a) => (a.priority || 'normal') === args.priority);
+        }
+        // High first, then original order — an agent working top-down should hit
+        // the urgent ones before the nits.
+        items = [...items].sort((a, b) => priorityRank(b) - priorityRank(a) || a.seq - b.seq);
+
         if (!items.length) {
           const scope = args.session ? ` in session ${args.session}` : '';
           return text(
@@ -362,6 +384,10 @@ export async function createEarmarkMcp(options = {}) {
           `Annotations — ${byStatus}`,
           `Sessions — ${sessions.length} known, ${live.length} connected`,
           ...live.map((s) => `  · ${s.id} ${s.url || '(unknown url)'} — ${s.counts.total} annotations`),
+          `Storage: ${store.backend}`,
+          webhooks.urls.length
+            ? `Webhooks: ${webhooks.urls.length} configured, ${webhooks.delivered()} delivered, ${webhooks.failed()} failed`
+            : 'Webhooks: none configured',
           `Cursor: ${store.cursor}`,
           lastBrowserEvent
             ? `Last annotation received ${Math.round((Date.now() - lastBrowserEvent) / 1000)}s ago`
@@ -392,11 +418,18 @@ export async function createEarmarkMcp(options = {}) {
       );
     },
     async close() {
+      webhooks.unsubscribe();
       await http.close();
       await store.persist();
+      await store.close();
       await server.close();
     },
   };
+}
+
+/** @param {any} annotation */
+function priorityRank(annotation) {
+  return { high: 2, normal: 1, low: 0 }[annotation.priority || 'normal'] ?? 1;
 }
 
 /**

@@ -78,10 +78,12 @@ is listening — the overlay still works, the sync dot just goes grey.
 | ➤ | Click an element. Shift-click to add more, then click to finish. |
 | T | Select text — the exact string is the most greppable thing you can hand an agent. |
 | ⛶ | Drag a region. Reports every element inside, or flags an empty area. |
-| ❊ | Freeze animations and transitions so you can annotate a moving element. |
+| ❊ | Freeze everything moving — CSS animations, `element.animate()`, `<video>`, `<audio>`. |
 | ☰ | Panel: review, delete, answer the agent, copy markdown. |
 
-`⌘↵` saves an annotation, `esc` cancels, `alt+a` toggles picking.
+`⌘↵` saves an annotation, `esc` cancels, `alt+a` toggles picking. Each
+annotation can be marked **high**, **normal** or **low** priority; `high` sorts
+first for the agent.
 
 ---
 
@@ -116,7 +118,29 @@ Click **Copy markdown** in the panel and paste into your agent:
 claude mcp add earmark -- npx -y earmark-mcp
 ```
 
+Or, to write it into the project's `.mcp.json`:
+
+```bash
+npx earmark-mcp init
+```
+
 That one process runs the MCP server *and* the broker the browser talks to.
+When something is not working, ask it why:
+
+```bash
+npx earmark-mcp doctor
+```
+
+```
+✓ Node version: v24.12.0
+✓ sqlite backend: available
+✓ MCP registration: earmark is registered in .mcp.json
+✓ Broker: responding on http://127.0.0.1:7331 — 1 annotations, 2 sessions
+✓ Browser overlay: http://localhost:5173/ (1 annotations)
+```
+
+Each failing check prints the command that fixes it, and `doctor` exits non-zero
+so CI can use it.
 
 ### Tools
 
@@ -202,6 +226,32 @@ earmark({
 Without the plugin everything still works — you get selectors, component names
 and text, just not `file:line`. You can also add `data-earmark-src` by hand.
 
+### Plain HTML and CSS — no build step
+
+A static site has no build to stamp, so earmark resolves the source at
+annotation time instead:
+
+- **HTML** — the document is re-fetched and parsed with position tracking, then
+  the element's child-index path is walked in the source. Every step is checked
+  against the live tag name, so a framework-rendered page (where the served HTML
+  is just a shell) reports nothing rather than inventing a line.
+- **CSS** — every rule that matches the element, mapped back to the file and
+  line that declares it. This one works everywhere, framework or not.
+
+```md
+- **Source:** `index.html:101:11` _(resolved from the served HTML)_
+- **CSS rules that style it:**
+  - `button` → `index.html (inline <style>):49`
+    - padding: 7px 13px; border-radius: 8px; border: 1px solid var(--line);
+  - `button.primary` → `index.html (inline <style>):59`
+    - background: var(--accent); color: rgb(255, 255, 255);
+```
+
+The agent now knows the padding it has to change lives at line 49 in the generic
+`button` rule, not in `.primary`. Inline `<style>` blocks are offset into their
+host document; external stylesheets report their own path; cross-origin
+stylesheets are skipped because their contents are unreadable.
+
 ---
 
 ## Standalone broker
@@ -225,7 +275,26 @@ curl http://127.0.0.1:7331/markdown
 | `GET /events?session=ID` | SSE stream; also the tab's liveness signal |
 | `GET /markdown` | the agent-facing document |
 
-Flags: `--host --file --no-persist --token --quiet`.
+Flags: `--host --store --file --no-persist --webhook --token --quiet`.
+
+### Storage
+
+`--store json` (default) writes a readable `.earmark/annotations.json` on a
+250 ms debounce. `--store sqlite` writes each change immediately to
+`.earmark/annotations.db` through `node:sqlite`, so a crash loses at most the
+statement in flight — no dependency, Node 22.5+, and it falls back to JSON if
+unavailable. `--store memory` keeps nothing.
+
+### Webhooks
+
+```bash
+npx earmark-server --webhook https://hooks.example/earmark
+```
+
+Also `EARMARK_WEBHOOK_URL` and `EARMARK_WEBHOOKS` (comma-separated). Every
+annotation event is POSTed with an `x-earmark-event` header. Delivery is
+fire-and-forget with a 5 s timeout and one retry, so a dead endpoint cannot
+stall the annotation loop.
 
 ---
 
@@ -237,6 +306,10 @@ This is a development tool.
 - CORS is open by design — your dev server is on an arbitrary origin.
 - Any page open in your browser can reach a loopback port. Pass `--token SECRET`
   if that matters on your machine.
+- **Webhooks send annotation content off your machine** — page URLs, element
+  text, and whatever you typed. Only configure endpoints you control.
+- Source resolution re-fetches your own page and stylesheets from the same
+  origin. Nothing is sent anywhere.
 - Do not run it on a shared or public host.
 
 ---
@@ -247,8 +320,9 @@ This is a development tool.
 npm test
 ```
 
-Four suites: store/HTTP behaviour, the MCP surface driven by a real stdio
-client, the overlay's sync client, and the source-stamping transform.
+Seven suites, 88 tests: store and HTTP behaviour, the MCP surface driven by a
+real stdio client, the overlay's sync client, both persistence backends, webhook
+delivery, the `init`/`doctor` CLI, and the source resolvers.
 
 ---
 

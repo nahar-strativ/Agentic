@@ -265,6 +265,29 @@ export const OVERLAY_CSS = /* css */ `
   color: var(--ea-fg-dim);
 }
 
+.priority {
+  all: unset;
+  padding: 4px 6px;
+  border: 1px solid var(--ea-border);
+  border-radius: 6px;
+  background: var(--ea-bg-elev);
+  color: var(--ea-fg-dim);
+  font: 500 11px/1.3 var(--ea-font);
+  cursor: pointer;
+}
+.priority:hover { color: var(--ea-fg); }
+
+.item-priority {
+  padding: 1px 5px;
+  border-radius: 4px;
+  font: 600 9.5px/1.5 var(--ea-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex: none;
+}
+.item-priority[data-priority="high"] { background: #ef4444; color: #fff; }
+.item-priority[data-priority="low"] { background: var(--ea-border); color: var(--ea-fg-dim); }
+
 .btn {
   all: unset;
   padding: 5px 11px;
