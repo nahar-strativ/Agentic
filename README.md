@@ -26,6 +26,10 @@ npm install && npm run example
 Open http://127.0.0.1:5173/examples/vanilla/, click the arrow in the toolbar
 (bottom right) or press `alt+a`, then click anything on the page.
 
+The landing page and full guide is served alongside it at
+http://127.0.0.1:5173/site/ — source in [site/index.html](site/index.html), a
+single self-contained file with no dependencies.
+
 For live agent sync, run the broker in a second terminal:
 
 ```bash

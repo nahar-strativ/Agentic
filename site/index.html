@@ -1,0 +1,1544 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>earmark — point at it, your agent finds the code</title>
+    <meta
+      name="description"
+      content="Click an element in your running app, say what should change, and your coding agent gets the selector, the source file and line, the component path and the computed styles."
+    />
+    <style>
+      /* ============================================================
+         earmark — marked-up proof
+         A technical document that has been annotated in orange ink.
+         ============================================================ */
+
+      :root {
+        /* Paper — the light ground, defined in full here so the un-stamped
+           default state always resolves. */
+        --ground: #f7f6f3;
+        --surface: #ffffff;
+        --surface-sunk: #f0eee9;
+        --rule: #cbd3de;
+        --rule-strong: #a8b3c2;
+        --ink: #14181f;
+        --ink-dim: #59616f;
+        --ink-faint: #8b93a1;
+
+        --mark: #d4530c;
+        --mark-soft: rgba(212, 83, 12, 0.12);
+        --mark-ink: #ffffff;
+
+        --state-ack: #2f6fd0;
+        --state-ask: #a97708;
+        --state-done: #1c8f63;
+
+        --code-ground: #14181f;
+        --code-ink: #dfe4ec;
+        --code-dim: #767f90;
+
+        --serif: Charter, "Iowan Old Style", "Palatino Linotype", Palatino,
+          "Book Antiqua", Georgia, ui-serif, serif;
+        --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, "Helvetica Neue", Arial, sans-serif;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo,
+          Consolas, monospace;
+
+        --measure: 68ch;
+        --rail: 5.5rem;
+
+        color-scheme: light;
+      }
+
+      :root:not([data-theme="light"]) {
+        @media (prefers-color-scheme: dark) {
+          --ground: #0e1218;
+          --surface: #161b24;
+          --surface-sunk: #11161e;
+          --rule: #2b3543;
+          --rule-strong: #3f4c5f;
+          --ink: #e7eaf0;
+          --ink-dim: #99a2b2;
+          --ink-faint: #6b7484;
+
+          --mark: #f97316;
+          --mark-soft: rgba(249, 115, 22, 0.15);
+          --mark-ink: #10141a;
+
+          --state-ack: #5b9cf0;
+          --state-ask: #e8b53c;
+          --state-done: #3fb984;
+
+          --code-ground: #0a0d12;
+          --code-ink: #dfe4ec;
+          --code-dim: #6b7484;
+
+          color-scheme: dark;
+        }
+      }
+
+      /* Fallback for engines without native CSS nesting in @media. */
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --ground: #0e1218;
+          --surface: #161b24;
+          --surface-sunk: #11161e;
+          --rule: #2b3543;
+          --rule-strong: #3f4c5f;
+          --ink: #e7eaf0;
+          --ink-dim: #99a2b2;
+          --ink-faint: #6b7484;
+
+          --mark: #f97316;
+          --mark-soft: rgba(249, 115, 22, 0.15);
+          --mark-ink: #10141a;
+
+          --state-ack: #5b9cf0;
+          --state-ask: #e8b53c;
+          --state-done: #3fb984;
+
+          --code-ground: #0a0d12;
+          --code-ink: #dfe4ec;
+          --code-dim: #6b7484;
+
+          color-scheme: dark;
+        }
+      }
+
+      :root[data-theme="dark"] {
+        --ground: #0e1218;
+        --surface: #161b24;
+        --surface-sunk: #11161e;
+        --rule: #2b3543;
+        --rule-strong: #3f4c5f;
+        --ink: #e7eaf0;
+        --ink-dim: #99a2b2;
+        --ink-faint: #6b7484;
+
+        --mark: #f97316;
+        --mark-soft: rgba(249, 115, 22, 0.15);
+        --mark-ink: #10141a;
+
+        --state-ack: #5b9cf0;
+        --state-ask: #e8b53c;
+        --state-done: #3fb984;
+
+        --code-ground: #0a0d12;
+        --code-ink: #dfe4ec;
+        --code-dim: #6b7484;
+
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: var(--ground);
+        color: var(--ink);
+        font: 400 16.5px/1.65 var(--sans);
+        letter-spacing: 0.003em;
+      }
+
+      ::selection {
+        background: var(--mark);
+        color: var(--mark-ink);
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--mark);
+        outline-offset: 3px;
+        border-radius: 2px;
+      }
+
+      a {
+        color: inherit;
+        text-decoration-color: var(--mark);
+        text-underline-offset: 0.18em;
+        text-decoration-thickness: 1.5px;
+      }
+
+      a:hover {
+        color: var(--mark);
+      }
+
+      /* ---------------------------------------------------------- shell -- */
+
+      .sheet {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 0 clamp(1.1rem, 4vw, 3rem);
+      }
+
+      .clause {
+        display: grid;
+        grid-template-columns: var(--rail) minmax(0, 1fr);
+        gap: 0 clamp(1rem, 3vw, 2.5rem);
+        padding: clamp(3rem, 6vw, 5rem) 0;
+        border-top: 1px solid var(--rule);
+      }
+
+      .clause-mark {
+        font: 500 11px/1.4 var(--mono);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        padding-top: 0.55rem;
+        position: sticky;
+        top: 1.5rem;
+        align-self: start;
+      }
+
+      .clause-mark b {
+        display: block;
+        color: var(--mark);
+        font-weight: 600;
+        font-size: 13px;
+        letter-spacing: 0.06em;
+      }
+
+      .clause-body {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1.15rem;
+      }
+
+      h2 {
+        margin: 0;
+        font: 400 clamp(1.7rem, 3.6vw, 2.4rem) / 1.15 var(--serif);
+        letter-spacing: -0.015em;
+        text-wrap: balance;
+      }
+
+      h3 {
+        margin: 1.4rem 0 0;
+        font: 600 1.02rem/1.4 var(--sans);
+        letter-spacing: -0.005em;
+      }
+
+      p {
+        margin: 0;
+        max-width: var(--measure);
+        color: var(--ink-dim);
+      }
+
+      p strong,
+      li strong {
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      .lede {
+        font: 400 1.12rem/1.62 var(--sans);
+        color: var(--ink);
+      }
+
+      code {
+        font: 500 0.87em/1.4 var(--mono);
+        background: var(--surface-sunk);
+        border: 1px solid var(--rule);
+        border-radius: 3px;
+        padding: 0.08em 0.34em;
+        white-space: nowrap;
+      }
+
+      /* ----------------------------------------------------------- hero -- */
+
+      .masthead {
+        display: flex;
+        align-items: baseline;
+        gap: 0.85rem;
+        padding: 1.6rem 0 0;
+        flex-wrap: wrap;
+      }
+
+      .wordmark {
+        font: 600 1.06rem/1 var(--mono);
+        letter-spacing: -0.02em;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .wordmark .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px 999px 999px 2px;
+        background: var(--mark);
+        display: inline-block;
+      }
+
+      .masthead nav {
+        margin-left: auto;
+        display: flex;
+        gap: 1.15rem;
+        font: 500 12.5px/1 var(--mono);
+        letter-spacing: 0.04em;
+        color: var(--ink-dim);
+        flex-wrap: wrap;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: clamp(2rem, 5vw, 3.5rem);
+        padding: clamp(2.6rem, 7vw, 5rem) 0 clamp(3rem, 7vw, 5rem);
+      }
+
+      @media (min-width: 940px) {
+        .hero {
+          grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
+          align-items: center;
+        }
+      }
+
+      .hero-eyebrow {
+        font: 500 11.5px/1 var(--mono);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--mark);
+        margin-bottom: 1.3rem;
+      }
+
+      h1 {
+        margin: 0 0 1.2rem;
+        font: 400 clamp(2.6rem, 7.2vw, 4.35rem) / 1.02 var(--serif);
+        letter-spacing: -0.032em;
+        text-wrap: balance;
+      }
+
+      h1 em {
+        font-style: italic;
+        color: var(--mark);
+      }
+
+      .hero p {
+        font-size: 1.12rem;
+        line-height: 1.6;
+        max-width: 46ch;
+      }
+
+      .hero-actions {
+        display: flex;
+        gap: 0.7rem;
+        margin-top: 1.9rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .cmd {
+        font: 500 13.5px/1 var(--mono);
+        background: var(--code-ground);
+        color: var(--code-ink);
+        padding: 0.72rem 0.95rem;
+        border-radius: 4px;
+        display: inline-flex;
+        gap: 0.6rem;
+        align-items: center;
+        white-space: nowrap;
+        overflow-x: auto;
+        max-width: 100%;
+      }
+
+      .cmd span {
+        color: var(--code-dim);
+      }
+
+      .ghost {
+        font: 500 13.5px/1 var(--mono);
+        padding: 0.72rem 0.95rem;
+        border: 1px solid var(--rule-strong);
+        border-radius: 4px;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+
+      .ghost:hover {
+        border-color: var(--mark);
+      }
+
+      /* ------------------------------------------------- hero facsimile -- */
+
+      .plate {
+        position: relative;
+        display: grid;
+        gap: 1rem;
+      }
+
+      @media (min-width: 560px) {
+        .plate {
+          grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+          align-items: start;
+        }
+      }
+
+      .mock {
+        background: var(--surface);
+        border: 1px solid var(--rule);
+        border-radius: 6px;
+        padding: 1rem 1.05rem 1.1rem;
+        position: relative;
+      }
+
+      .mock-label {
+        font: 600 10px/1 var(--mono);
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+      }
+
+      .mock-metric {
+        font: 600 1.75rem/1.2 var(--sans);
+        letter-spacing: -0.03em;
+        margin: 0.5rem 0 0.15rem;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .mock-delta {
+        font: 500 12px/1 var(--mono);
+        color: var(--state-done);
+      }
+
+      .mock-row {
+        display: flex;
+        gap: 0.45rem;
+        margin-top: 0.95rem;
+      }
+
+      .mock-btn {
+        font: 500 12px/1 var(--sans);
+        padding: 0.5rem 0.75rem;
+        border-radius: 5px;
+        border: 1px solid var(--rule);
+        color: var(--ink-dim);
+      }
+
+      .mock-btn.is-primary {
+        background: var(--mark);
+        border-color: var(--mark);
+        color: var(--mark-ink);
+        position: relative;
+      }
+
+      /* the annotation itself */
+      .marquee-box {
+        position: absolute;
+        inset: -6px -6px -6px -6px;
+        border: 1.5px dashed var(--mark);
+        border-radius: 4px;
+        pointer-events: none;
+      }
+
+      .pin {
+        position: absolute;
+        width: 21px;
+        height: 21px;
+        border-radius: 999px 999px 999px 2px;
+        background: var(--mark);
+        color: var(--mark-ink);
+        font: 600 11px/21px var(--mono);
+        text-align: center;
+        z-index: 2;
+        box-shadow: 0 2px 8px rgb(0 0 0 / 0.22);
+      }
+
+      .pin.is-done {
+        background: var(--state-done);
+      }
+
+      .pin.is-ack {
+        background: var(--state-ack);
+        color: #fff;
+      }
+
+      .pin-1 {
+        top: -12px;
+        left: -12px;
+      }
+
+      .out {
+        background: var(--code-ground);
+        border-radius: 6px;
+        padding: 0.95rem 1.05rem;
+        font: 400 12.2px/1.68 var(--mono);
+        color: var(--code-ink);
+        overflow-x: auto;
+      }
+
+      .out .k {
+        color: var(--code-dim);
+      }
+
+      .out .v {
+        color: #7fd1a8;
+      }
+
+      .out .m {
+        color: #ffa25e;
+      }
+
+      .out-title {
+        font: 600 10px/1 var(--mono);
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--code-dim);
+        margin-bottom: 0.7rem;
+      }
+
+      .plate-caption {
+        grid-column: 1 / -1;
+        font: 400 12.5px/1.5 var(--mono);
+        color: var(--ink-faint);
+        display: flex;
+        gap: 0.5rem;
+        align-items: baseline;
+      }
+
+      .plate-caption b {
+        color: var(--mark);
+        font-weight: 600;
+      }
+
+      /* --------------------------------------------------------- blocks -- */
+
+      pre {
+        margin: 0;
+        background: var(--code-ground);
+        color: var(--code-ink);
+        border-radius: 5px;
+        padding: 1rem 1.15rem;
+        overflow-x: auto;
+        font: 400 13px/1.7 var(--mono);
+        max-width: 100%;
+      }
+
+      pre .c {
+        color: var(--code-dim);
+      }
+
+      pre .s {
+        color: #ffa25e;
+      }
+
+      pre .f {
+        color: #7fd1a8;
+      }
+
+      .note {
+        border-left: 2px solid var(--mark);
+        padding: 0.15rem 0 0.15rem 1rem;
+        max-width: var(--measure);
+      }
+
+      .note p {
+        color: var(--ink);
+      }
+
+      .grid {
+        display: grid;
+        gap: 1px;
+        background: var(--rule);
+        border: 1px solid var(--rule);
+        border-radius: 5px;
+        overflow: hidden;
+      }
+
+      @media (min-width: 720px) {
+        .grid.cols-2 {
+          grid-template-columns: 1fr 1fr;
+        }
+        .grid.cols-3 {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      .cell {
+        background: var(--surface);
+        padding: 1.15rem 1.2rem 1.3rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+      }
+
+      .cell h4 {
+        margin: 0;
+        font: 600 0.95rem/1.4 var(--sans);
+      }
+
+      .cell p {
+        font-size: 0.925rem;
+        color: var(--ink-dim);
+      }
+
+      .cell .tag {
+        font: 600 9.5px/1 var(--mono);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--mark);
+      }
+
+      .scroller {
+        overflow-x: auto;
+        border: 1px solid var(--rule);
+        border-radius: 5px;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 520px;
+        font-size: 0.925rem;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 0.62rem 0.9rem;
+        border-bottom: 1px solid var(--rule);
+        vertical-align: top;
+      }
+
+      thead th {
+        font: 600 10.5px/1.4 var(--mono);
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        background: var(--surface-sunk);
+        white-space: nowrap;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      td code {
+        white-space: nowrap;
+      }
+
+      td:first-child {
+        white-space: nowrap;
+      }
+
+      .muted {
+        color: var(--ink-dim);
+      }
+
+      ul.plain {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        max-width: var(--measure);
+        color: var(--ink-dim);
+      }
+
+      ul.plain li {
+        display: grid;
+        grid-template-columns: 1.15rem 1fr;
+        gap: 0.55rem;
+      }
+
+      ul.plain li::before {
+        content: "—";
+        color: var(--mark);
+        font: 500 0.95rem/1.62 var(--mono);
+      }
+
+      .steps {
+        counter-reset: step;
+        display: grid;
+        gap: 0;
+        border-top: 1px solid var(--rule);
+      }
+
+      .step {
+        counter-increment: step;
+        display: grid;
+        grid-template-columns: 2.4rem minmax(0, 1fr);
+        gap: 1rem;
+        padding: 1rem 0;
+        border-bottom: 1px solid var(--rule);
+        align-items: baseline;
+      }
+
+      .step::before {
+        content: counter(step, decimal-leading-zero);
+        font: 600 12px/1.5 var(--mono);
+        color: var(--mark);
+        letter-spacing: 0.05em;
+      }
+
+      .step b {
+        font-weight: 600;
+      }
+
+      .step span {
+        color: var(--ink-dim);
+      }
+
+      .pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+      }
+
+      .pill {
+        font: 600 10.5px/1 var(--mono);
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        padding: 0.42rem 0.6rem;
+        border-radius: 999px;
+        border: 1px solid var(--rule-strong);
+        color: var(--ink-dim);
+        display: inline-flex;
+        gap: 0.4rem;
+        align-items: center;
+      }
+
+      .pill i {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        display: inline-block;
+        background: currentColor;
+      }
+
+      .pill.s-open {
+        color: var(--mark);
+        border-color: var(--mark);
+      }
+      .pill.s-ack {
+        color: var(--state-ack);
+        border-color: var(--state-ack);
+      }
+      .pill.s-ask {
+        color: var(--state-ask);
+        border-color: var(--state-ask);
+      }
+      .pill.s-done {
+        color: var(--state-done);
+        border-color: var(--state-done);
+      }
+
+      figure {
+        margin: 0;
+      }
+
+      figure svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      figcaption {
+        margin-top: 0.7rem;
+        font: 400 12.5px/1.5 var(--mono);
+        color: var(--ink-faint);
+      }
+
+      /* --------------------------------------------------------- footer -- */
+
+      footer {
+        border-top: 1px solid var(--rule);
+        padding: 2.6rem 0 3.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.2rem 2.5rem;
+        align-items: baseline;
+        font: 400 13px/1.6 var(--mono);
+        color: var(--ink-faint);
+      }
+
+      footer .spacer {
+        flex: 1;
+      }
+
+      /* --------------------------------------------------------- motion -- */
+
+      @keyframes drop {
+        from {
+          opacity: 0;
+          transform: translateY(-7px) scale(0.85);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      @keyframes draw {
+        from {
+          opacity: 0;
+          transform: scale(1.06);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(5px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      .marquee-box {
+        animation: draw 420ms cubic-bezier(0.2, 0.8, 0.3, 1) 240ms both;
+      }
+
+      .pin-1 {
+        animation: drop 380ms cubic-bezier(0.2, 1.3, 0.4, 1) 560ms both;
+      }
+
+      .out {
+        animation: rise 500ms ease-out 760ms both;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+
+      @media (max-width: 700px) {
+        .clause {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 0.9rem;
+        }
+        .clause-mark {
+          position: static;
+          padding-top: 0;
+          display: flex;
+          gap: 0.6rem;
+          align-items: baseline;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="sheet">
+      <header class="masthead">
+        <span class="wordmark"><span class="dot"></span>earmark</span>
+        <nav>
+          <a href="#start">Start</a>
+          <a href="#loop">The loop</a>
+          <a href="#source">Source</a>
+          <a href="#mcp">MCP</a>
+          <a href="#broker">Broker</a>
+        </nav>
+      </header>
+
+      <!-- ============================================== hero ============ -->
+      <section class="hero">
+        <div>
+          <div class="hero-eyebrow">Visual feedback, for coding agents</div>
+          <h1>Point at it. Your agent finds <em>the code</em>.</h1>
+          <p>
+            Click an element in your running app and say what should change.
+            earmark hands your agent the selector, the source file and line, the
+            component path, the computed styles and the exact box — instead of
+            “the button on the right looks wrong”.
+          </p>
+          <div class="hero-actions">
+            <span class="cmd"><span>$</span>npm install -D earmark</span>
+            <a class="ghost" href="https://github.com/nahar-strativ/Agentic"
+              >Source on GitHub</a
+            >
+          </div>
+        </div>
+
+        <div class="plate">
+          <div class="mock">
+            <div class="mock-label">Revenue</div>
+            <div class="mock-metric">$48,220</div>
+            <div class="mock-delta">+12.4% vs last month</div>
+            <div class="mock-row">
+              <span class="mock-btn is-primary"
+                >Export
+                <span class="marquee-box"></span>
+                <span class="pin pin-1">1</span>
+              </span>
+              <span class="mock-btn">Details</span>
+            </div>
+          </div>
+
+          <div class="out">
+            <div class="out-title">What the agent receives</div>
+            <div>
+              <span class="k">### 1.</span> Export button padding is too tight
+            </div>
+            <div>&nbsp;</div>
+            <div><span class="k">- Selector:</span> <span class="m">[data-testid="export-btn"]</span></div>
+            <div><span class="k">- Source:</span> <span class="v">index.html:101:11</span></div>
+            <div><span class="k">- CSS rule:</span> <span class="v">styles.css:49</span> <span class="k">(button)</span></div>
+            <div><span class="k">- Computed:</span> padding: 7px 13px</div>
+            <div><span class="k">- Box:</span> 66×37 at (194, 376)</div>
+          </div>
+
+          <p class="plate-caption">
+            <b>1</b>
+            <span
+              >One click produces every fact an agent needs to grep, open the
+              file, and make the edit.</span
+            >
+          </p>
+        </div>
+      </section>
+
+      <!-- ============================================== 01 problem ====== -->
+      <section class="clause" id="why">
+        <div class="clause-mark"><b>§01</b> Why</div>
+        <div class="clause-body">
+          <h2>Describing a pixel to a language model is the slow part.</h2>
+          <p class="lede">
+            You can see the problem instantly. Communicating it costs three
+            paragraphs, two screenshots and a round of “which button?”. Your
+            agent then greps for a class name that turned out to be generated at
+            build time.
+          </p>
+          <p>
+            earmark removes the translation step. You point; it captures the
+            things a machine can act on. Everything it reports is verified
+            before it is reported — a selector is checked against the document
+            until it resolves to exactly one element, and a source line is
+            checked against the live DOM before it is claimed.
+          </p>
+
+          <div class="grid cols-3">
+            <div class="cell">
+              <span class="tag">Precise</span>
+              <h4>Verified selectors</h4>
+              <p>
+                Test ids first, then ids, then semantic attributes, then a
+                scoped path. Build-hashed class names are filtered out, because
+                a selector containing a hash is worse than useless.
+              </p>
+            </div>
+            <div class="cell">
+              <span class="tag">Universal</span>
+              <h4>Any framework, or none</h4>
+              <p>
+                Plain DOM and Shadow&nbsp;DOM, zero runtime dependencies. React,
+                Vue and Angular component paths are an enhancement layer, never
+                a requirement.
+              </p>
+            </div>
+            <div class="cell">
+              <span class="tag">Two-way</span>
+              <h4>The agent can answer</h4>
+              <p>
+                It can ask you a clarifying question, mark work as picked up, or
+                resolve an annotation with a summary. The pin changes colour in
+                your browser.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== 02 start ======== -->
+      <section class="clause" id="start">
+        <div class="clause-mark"><b>§02</b> Install</div>
+        <div class="clause-body">
+          <h2>Two lines to mount it.</h2>
+          <p>
+            earmark ships as plain ESM with no build step of its own. Mount it
+            behind a development guard so it never reaches production.
+          </p>
+
+          <pre><span class="c">// main.js — anywhere that runs once, in development</span>
+<span class="c">import</span> { createEarmark } <span class="c">from</span> <span class="s">'earmark'</span>
+
+<span class="c">if</span> (import.meta.env.DEV) createEarmark()</pre>
+
+          <h3>With no bundler at all</h3>
+          <pre>&lt;script type=<span class="s">"module"</span> src=<span class="s">"/node_modules/earmark/src/index.js"</span> data-earmark-auto&gt;&lt;/script&gt;</pre>
+
+          <h3>Options</h3>
+          <pre>createEarmark({
+  endpoint: <span class="s">'http://127.0.0.1:7331'</span>,  <span class="c">// or false for copy-paste only</span>
+  hotkey:   <span class="s">'alt+a'</span>,
+  theme:    <span class="s">'auto'</span>,                    <span class="c">// 'auto' | 'light' | 'dark'</span>
+  persist:  <span class="f">true</span>,                      <span class="c">// keep annotations across reloads</span>
+  onAnnotate: (annotation) =&gt; {},
+})</pre>
+
+          <div class="note">
+            <p>
+              The endpoint defaults to the local broker and fails quietly when
+              nothing is listening. The overlay stays fully usable in
+              copy-paste mode; the sync dot simply goes grey.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== 03 toolbar ====== -->
+      <section class="clause" id="toolbar">
+        <div class="clause-mark"><b>§03</b> Toolbar</div>
+        <div class="clause-body">
+          <h2>Five tools, bottom right.</h2>
+          <p>
+            Press <code>alt+a</code> or click the arrow to start picking.
+            <code>⌘↵</code> saves an annotation, <code>esc</code> cancels.
+          </p>
+
+          <div class="scroller">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tool</th>
+                  <th>What it does</th>
+                  <th>Use it for</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Pick</strong></td>
+                  <td>
+                    Hover highlights an element and names it; click to annotate.
+                    Shift-click accumulates several, then click to finish.
+                  </td>
+                  <td class="muted">Almost everything</td>
+                </tr>
+                <tr>
+                  <td><strong>Text</strong></td>
+                  <td>
+                    Select running text. The exact string is captured alongside
+                    its container.
+                  </td>
+                  <td class="muted">Typos, copy changes, tone</td>
+                </tr>
+                <tr>
+                  <td><strong>Region</strong></td>
+                  <td>
+                    Drag a box. Reports every element substantially inside it,
+                    or flags the area as empty.
+                  </td>
+                  <td class="muted">Spacing, empty gaps, whole blocks</td>
+                </tr>
+                <tr>
+                  <td><strong>Freeze</strong></td>
+                  <td>
+                    Pauses CSS animations, <code>element.animate()</code>
+                    timelines, and any playing <code>video</code> or
+                    <code>audio</code>.
+                  </td>
+                  <td class="muted">Annotating a moving frame</td>
+                </tr>
+                <tr>
+                  <td><strong>Panel</strong></td>
+                  <td>
+                    Review, delete, answer the agent, copy markdown for
+                    everything at once.
+                  </td>
+                  <td class="muted">Before handing work over</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Priority</h3>
+          <p>
+            Each annotation is <strong>high</strong>, <strong>normal</strong> or
+            <strong>low</strong>. High sorts first when the agent lists them, so
+            an agent working top-down hits the urgent items before the nits.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============================================== 04 loop ========= -->
+      <section class="clause" id="loop">
+        <div class="clause-mark"><b>§04</b> The loop</div>
+        <div class="clause-body">
+          <h2>Copy-paste, or let the agent read directly.</h2>
+          <p>
+            Copy-paste mode needs no infrastructure at all: click
+            <strong>Copy markdown</strong> and paste into your agent. Agent-sync
+            mode runs a local broker so the agent reads annotations itself, asks
+            questions, and reports back.
+          </p>
+
+          <figure>
+            <svg viewBox="0 0 760 220" role="img" aria-label="Browser posts annotations to a local broker; the agent reads them over MCP and pushes replies back to the browser over server-sent events.">
+              <defs>
+                <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 z" fill="var(--rule-strong)" />
+                </marker>
+                <marker id="arm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 z" fill="var(--mark)" />
+                </marker>
+              </defs>
+
+              <g font-family="ui-monospace, monospace" font-size="12">
+                <rect x="8" y="46" width="196" height="128" rx="5" fill="var(--surface)" stroke="var(--rule)" />
+                <text x="24" y="72" fill="var(--mark)" font-size="10" letter-spacing="1.4">BROWSER</text>
+                <text x="24" y="96" fill="var(--ink)">click → annotate</text>
+                <text x="24" y="118" fill="var(--ink-dim)">pins, panel</text>
+                <text x="24" y="140" fill="var(--ink-dim)">markdown</text>
+                <text x="24" y="162" fill="var(--ink-dim)">source resolution</text>
+
+                <rect x="282" y="46" width="196" height="128" rx="5" fill="var(--surface)" stroke="var(--rule)" />
+                <text x="298" y="72" fill="var(--mark)" font-size="10" letter-spacing="1.4">BROKER · 127.0.0.1</text>
+                <text x="298" y="96" fill="var(--ink)">store + sessions</text>
+                <text x="298" y="118" fill="var(--ink-dim)">SSE + long-poll</text>
+                <text x="298" y="140" fill="var(--ink-dim)">json / sqlite</text>
+                <text x="298" y="162" fill="var(--ink-dim)">webhooks</text>
+
+                <rect x="556" y="46" width="196" height="128" rx="5" fill="var(--surface)" stroke="var(--rule)" />
+                <text x="572" y="72" fill="var(--mark)" font-size="10" letter-spacing="1.4">AGENT · MCP</text>
+                <text x="572" y="96" fill="var(--ink)">list · watch</text>
+                <text x="572" y="118" fill="var(--ink-dim)">acknowledge · ask</text>
+                <text x="572" y="140" fill="var(--ink-dim)">resolve · dismiss</text>
+                <text x="572" y="162" fill="var(--ink-dim)">sessions</text>
+
+                <line x1="208" y1="92" x2="276" y2="92" stroke="var(--mark)" stroke-width="1.5" marker-end="url(#arm)" />
+                <text x="214" y="82" fill="var(--mark)" font-size="10">POST</text>
+
+                <line x1="276" y1="132" x2="208" y2="132" stroke="var(--rule-strong)" stroke-width="1.5" marker-end="url(#ar)" />
+                <text x="214" y="150" fill="var(--ink-faint)" font-size="10">SSE</text>
+
+                <line x1="482" y1="92" x2="550" y2="92" stroke="var(--rule-strong)" stroke-width="1.5" marker-end="url(#ar)" />
+                <line x1="550" y1="132" x2="482" y2="132" stroke="var(--rule-strong)" stroke-width="1.5" marker-end="url(#ar)" />
+                <text x="492" y="82" fill="var(--ink-faint)" font-size="10">watch</text>
+                <text x="492" y="150" fill="var(--ink-faint)" font-size="10">reply</text>
+
+                <text x="8" y="204" fill="var(--ink-faint)" font-size="11">
+                  A human answer wakes the agent’s next watch. Nothing leaves the machine.
+                </text>
+              </g>
+            </svg>
+            <figcaption>
+              The broker binds to loopback only. In copy-paste mode the middle
+              box does not exist.
+            </figcaption>
+          </figure>
+
+          <h3>The fix loop, once MCP is connected</h3>
+          <div class="steps">
+            <div class="step">
+              <div>
+                <b>Agent blocks on <code>earmark_watch_annotations</code></b>
+                <span> — a long poll, not a busy loop. It wakes the moment you save an annotation.</span>
+              </div>
+            </div>
+            <div class="step">
+              <div>
+                <b>Acknowledges it</b>
+                <span> — the pin turns blue. You can see it has been picked up rather than ignored.</span>
+              </div>
+            </div>
+            <div class="step">
+              <div>
+                <b>Opens the reported file and line</b>
+                <span> — no grep, no guessing which of four buttons you meant.</span>
+              </div>
+            </div>
+            <div class="step">
+              <div>
+                <b>Asks, if the feedback is ambiguous</b>
+                <span> — the question appears on the pin; your answer wakes the next watch.</span>
+              </div>
+            </div>
+            <div class="step">
+              <div>
+                <b>Resolves with a summary</b>
+                <span> — the pin turns green, and the loop starts again.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pills" style="margin-top: 0.4rem">
+            <span class="pill s-open"><i></i>open</span>
+            <span class="pill s-ack"><i></i>acknowledged</span>
+            <span class="pill s-ask"><i></i>needs input</span>
+            <span class="pill s-done"><i></i>resolved</span>
+            <span class="pill"><i></i>dismissed</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== 05 source ======= -->
+      <section class="clause" id="source">
+        <div class="clause-mark"><b>§05</b> Source</div>
+        <div class="clause-body">
+          <h2>Three ways to find the line, in order of confidence.</h2>
+          <p>
+            A selector tells an agent what to grep for. A file and line tells it
+            where to look — the difference between one edit and three searches.
+            earmark tries each tier and reports which one produced the answer.
+          </p>
+
+          <div class="grid cols-3">
+            <div class="cell">
+              <span class="tag">Tier 1 · JSX</span>
+              <h4>Stamped at build time</h4>
+              <p>
+                A Vite plugin writes
+                <code>data-earmark-src</code> onto every intrinsic JSX element
+                during <code>vite dev</code>. Exact, and it works on React 19 —
+                which removed the runtime <code>_debugSource</code> field that
+                older tools rely on.
+              </p>
+            </div>
+            <div class="cell">
+              <span class="tag">Tier 2 · HTML &amp; CSS</span>
+              <h4>Resolved from the served page</h4>
+              <p>
+                No build step? The document is re-fetched and parsed with
+                position tracking, then the element’s path is walked in the
+                source. Every step is checked against the live tag name — so a
+                framework shell reports nothing rather than a wrong line.
+              </p>
+            </div>
+            <div class="cell">
+              <span class="tag">Tier 3 · Always</span>
+              <h4>Selector, text, component path</h4>
+              <p>
+                Even with no source at all, the agent gets a verified unique
+                selector, the exact visible text, the React or Vue component
+                chain, and the computed styles.
+              </p>
+            </div>
+          </div>
+
+          <h3>Vite</h3>
+          <pre><span class="c">// vite.config.js</span>
+<span class="c">import</span> earmark <span class="c">from</span> <span class="s">'vite-plugin-earmark'</span>
+
+<span class="c">export default</span> { plugins: [react(), earmark()] }</pre>
+
+          <h3>Plain HTML and CSS</h3>
+          <p>
+            Nothing to configure. Every CSS rule that actually matches the
+            element is mapped back to the file and line that declares it —
+            including rules inside a <code>&lt;style&gt;</code> block, which are
+            offset into their host document rather than reported against a
+            phantom file.
+          </p>
+
+          <pre><span class="c">- **Source:** `index.html:101:11` _(resolved from the served HTML)_</span>
+- **CSS rules that style it:**
+  - `button` → <span class="f">index.html (inline &lt;style&gt;):49</span>
+    - padding: 7px 13px; border-radius: 8px;
+  - `button.primary` → <span class="f">index.html (inline &lt;style&gt;):59</span>
+    - background: var(--accent); color: rgb(255, 255, 255);</pre>
+
+          <div class="note">
+            <p>
+              The agent now knows the padding it has to change lives in the
+              generic <code>button</code> rule at line 49 — not in
+              <code>.primary</code>. That distinction is usually the whole bug.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== 06 mcp ========== -->
+      <section class="clause" id="mcp">
+        <div class="clause-mark"><b>§06</b> MCP</div>
+        <div class="clause-body">
+          <h2>Eleven tools, one process.</h2>
+          <p>
+            The MCP server runs the annotation store, the endpoint your browser
+            talks to, and the stdio transport in a single process. There is no
+            second daemon to keep alive.
+          </p>
+
+          <pre>claude mcp add earmark -- npx -y earmark-mcp
+
+<span class="c"># or write it into the project's .mcp.json</span>
+npx earmark-mcp init</pre>
+
+          <div class="scroller">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tool</th>
+                  <th>Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>earmark_list_annotations</code></td>
+                  <td>
+                    Outstanding work as markdown. Filter by status, session or
+                    priority; high sorts first.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>earmark_watch_annotations</code></td>
+                  <td>
+                    Blocks until you annotate something. This is what makes a
+                    fix loop possible.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>earmark_get_annotation</code></td>
+                  <td>One annotation with its full reply thread.</td>
+                </tr>
+                <tr>
+                  <td><code>earmark_list_sessions</code></td>
+                  <td>
+                    Which browser tabs are open and which routes were annotated
+                    in each.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>earmark_get_session</code></td>
+                  <td>One tab with everything it produced.</td>
+                </tr>
+                <tr>
+                  <td><code>earmark_acknowledge</code></td>
+                  <td>“Read it, working on it.” The pin turns blue.</td>
+                </tr>
+                <tr>
+                  <td><code>earmark_ask</code></td>
+                  <td>
+                    Ask a clarifying question instead of guessing. The pin turns
+                    amber.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>earmark_resolve</code></td>
+                  <td>Done, with a summary of the change. The pin turns green.</td>
+                </tr>
+                <tr>
+                  <td><code>earmark_dismiss</code></td>
+                  <td>Declined, with a reason you can see.</td>
+                </tr>
+                <tr>
+                  <td><code>earmark_clear</code></td>
+                  <td>Delete everything.</td>
+                </tr>
+                <tr>
+                  <td><code>earmark_status</code></td>
+                  <td>
+                    Is the overlay connected? Which endpoint should it use?
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>When something is not working, ask it why</h3>
+          <pre>$ npx earmark-mcp doctor
+
+<span class="f">✓</span> Node version: v24.12.0
+<span class="f">✓</span> sqlite backend: available
+<span class="f">✓</span> MCP registration: earmark is registered in .mcp.json
+<span class="f">✓</span> Broker: responding on http://127.0.0.1:7331 — 1 annotations, 2 sessions
+<span class="f">✓</span> Browser overlay: http://localhost:5173/ (1 annotations)
+
+Everything checks out.</pre>
+          <p>
+            Each failing check prints the command that fixes it, and the exit
+            code is non-zero, so it works in CI.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============================================== 07 sessions ===== -->
+      <section class="clause" id="sessions">
+        <div class="clause-mark"><b>§07</b> Sessions</div>
+        <div class="clause-body">
+          <h2>A session is one tab, not one page load.</h2>
+          <p>
+            The session id lives in <code>sessionStorage</code>, so refreshing
+            does not fragment your feedback into three sessions. Each annotation
+            still carries its own URL — a tab that wandered across
+            <code>/dashboard</code>, <code>/settings</code> and
+            <code>/billing</code> gives the agent one group with three
+            differently-routed items.
+          </p>
+          <ul class="plain">
+            <li>
+              Client-side navigation is tracked. <code>pushState</code>,
+              <code>replaceState</code>, <code>popstate</code> and
+              <code>hashchange</code> all update the session’s route list.
+            </li>
+            <li>
+              A tab counts as connected for exactly as long as its event stream
+              is open — no heartbeat protocol to get wrong.
+            </li>
+            <li>
+              Reconnecting merges rather than overwrites. If the agent replied
+              while the tab was closed, that reply survives the reconnect.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============================================== 08 broker ======= -->
+      <section class="clause" id="broker">
+        <div class="clause-mark"><b>§08</b> Broker</div>
+        <div class="clause-body">
+          <h2>Runs standalone, if you would rather not use MCP.</h2>
+          <pre>npx earmark-server --port 7331
+curl http://127.0.0.1:7331/markdown</pre>
+
+          <div class="grid cols-2">
+            <div class="cell">
+              <span class="tag">Storage</span>
+              <h4>json, sqlite or memory</h4>
+              <p>
+                <code>json</code> writes a readable file on a short debounce.
+                <code>sqlite</code> writes each change immediately through
+                <code>node:sqlite</code> — a real database for zero
+                dependencies, falling back to json where unavailable.
+              </p>
+            </div>
+            <div class="cell">
+              <span class="tag">Webhooks</span>
+              <h4>Push events onward</h4>
+              <p>
+                <code>--webhook URL</code>, or
+                <code>EARMARK_WEBHOOKS</code>. Delivery is fire-and-forget with
+                a timeout and one retry, so a dead endpoint can never stall the
+                annotation loop.
+              </p>
+            </div>
+          </div>
+
+          <div class="scroller">
+            <table>
+              <thead>
+                <tr>
+                  <th>Route</th>
+                  <th>Does</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>GET /health</code></td>
+                  <td>Liveness, counts, cursor</td>
+                </tr>
+                <tr>
+                  <td><code>GET /annotations</code></td>
+                  <td>List; filter by <code>status</code> and <code>session</code></td>
+                </tr>
+                <tr>
+                  <td><code>POST /annotations</code></td>
+                  <td>Create, in batches</td>
+                </tr>
+                <tr>
+                  <td><code>GET /annotations/wait</code></td>
+                  <td>Long poll — the primitive behind <code>watch</code></td>
+                </tr>
+                <tr>
+                  <td><code>PATCH /annotations/:id</code></td>
+                  <td>Change status</td>
+                </tr>
+                <tr>
+                  <td><code>POST /annotations/:id/replies</code></td>
+                  <td>Append to the thread</td>
+                </tr>
+                <tr>
+                  <td><code>GET /sessions</code></td>
+                  <td>Tabs, with counts and routes</td>
+                </tr>
+                <tr>
+                  <td><code>GET /events</code></td>
+                  <td>Server-sent events; also a tab’s liveness signal</td>
+                </tr>
+                <tr>
+                  <td><code>GET /markdown</code></td>
+                  <td>The agent-facing document, ready to paste</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== 09 security ===== -->
+      <section class="clause" id="security">
+        <div class="clause-mark"><b>§09</b> Safety</div>
+        <div class="clause-body">
+          <h2>A development tool, scoped like one.</h2>
+          <ul class="plain">
+            <li>
+              The broker binds <code>127.0.0.1</code> only. Do not bind it to
+              <code>0.0.0.0</code>.
+            </li>
+            <li>
+              CORS is open by design — your dev server lives on an arbitrary
+              origin. Any page in your browser can reach a loopback port, so
+              pass <code>--token</code> if that matters on your machine.
+            </li>
+            <li>
+              Source resolution re-fetches your own page and stylesheets from
+              the same origin. Nothing is sent anywhere.
+            </li>
+            <li>
+              <strong>Webhooks are the exception</strong> — they send page URLs,
+              element text and whatever you typed off the machine. Only
+              configure endpoints you control.
+            </li>
+            <li>Do not run it on a shared or public host.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============================================== 10 limits ======= -->
+      <section class="clause" id="limits">
+        <div class="clause-mark"><b>§10</b> Limits</div>
+        <div class="clause-body">
+          <h2>What it does not do.</h2>
+          <p>
+            Stated plainly, because finding out later is worse than knowing now.
+          </p>
+          <ul class="plain">
+            <li>
+              <strong>Desktop browsers only.</strong> There is no touch or
+              mobile mode.
+            </li>
+            <li>
+              <strong>No screenshots.</strong> Everything is structural: text,
+              selectors, geometry, styles.
+            </li>
+            <li>
+              <strong>Iframes are invisible.</strong> The overlay only sees its
+              own document.
+            </li>
+            <li>
+              <strong>Canvas and WebGL have nothing to annotate.</strong> Region
+              mode will honestly report an empty area.
+            </li>
+            <li>
+              <strong>Next.js and Svelte have no source-stamping plugin yet.</strong>
+              They still get tier-2 CSS mapping and tier-3 selectors.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <footer>
+        <span class="wordmark"><span class="dot"></span>earmark</span>
+        <span class="spacer"></span>
+        <span>MIT · clean-room implementation</span>
+        <a href="https://github.com/nahar-strativ/Agentic">github.com/nahar-strativ/Agentic</a>
+      </footer>
+    </div>
+  </body>
+</html>

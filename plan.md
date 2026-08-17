@@ -53,6 +53,7 @@ packages/server        earmark-server       HTTP + SSE broker, json/sqlite store
 packages/mcp           earmark-mcp          MCP stdio server (embeds the broker)
 packages/vite-plugin   vite-plugin-earmark  stamps JSX with file:line:col
 examples/vanilla       demo page + static server
+site/                  landing page and guide (one self-contained file)
 test/                  node --test suites
 ```
 
@@ -328,7 +329,42 @@ a line in the markdown when it is not `normal`. `earmark_list_annotations`
 filters by it and always sorts high-first, so an agent working top-down hits the
 urgent items before the nits.
 
-### 4.19 Security posture
+### 4.19 Landing page and guide (added 2026-08-17)
+
+`site/index.html` — one self-contained file, no dependencies, no build. Serves
+from the demo server at `/site/`, deploys to GitHub Pages as-is, and
+`npm run site:fragment` strips the document wrapper for embedding targets that
+supply their own.
+
+**Design direction: a marked-up technical proof.** The page is set like a spec
+document — numbered clause rail (`§01`…`§10`), a 68ch measure — that has been
+annotated in orange ink. The hero is the product in one image: the demo card on
+the left with a dashed selection box and pin `1` on the Export button, the
+resulting agent-facing markdown on the right.
+
+- **Type** pairs a Charter/Iowan serif for statements against `ui-monospace`
+  for every fact, with a system sans carrying the prose. That tension — bookish
+  serif, hard mono — is the identity: a document marked up for a machine.
+  System stacks throughout, because the CSP on embedding targets blocks font
+  CDNs and a silent fallback is worse than a deliberate stack.
+- **Colour** is blueprint ink (`#0e1218`) or warm paper (`#f7f6f3`) with
+  blue-grey rules, and the product's orange used *only* where the page marks
+  something — pins, clause numbers, the accent word in the headline. The three
+  pin-state colours are lifted straight from the overlay, so they encode real
+  state rather than decorating.
+- Both themes are fully designed at token level, including the un-stamped
+  `prefers-color-scheme` default. Motion is one page-load sequence in the hero
+  (box draws, pin drops, output rises) and nothing else; all of it is disabled
+  under `prefers-reduced-motion`.
+- The flow diagram is inline SVG driven by the same CSS tokens, so it recolours
+  with the theme instead of being baked for one.
+
+Content is the full guide, not a teaser: install, the toolbar, the fix loop, all
+three source-resolution tiers, the eleven MCP tools, sessions, the broker
+routes, storage and webhooks, the security posture, and a plainly-stated limits
+section.
+
+### 4.20 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
 - Any page in the browser can reach a loopback port, so an optional `--token`
@@ -492,3 +528,6 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   four matching CSS rules each with the correct line, webhook delivered to a
   real listener, sqlite state surviving a broker restart, `doctor` detecting the
   live broker and connected tab.
+- **2026-08-17** — Landing page and full guide at `site/index.html` (§4.19),
+  also published as a Claude artifact:
+  https://claude.ai/code/artifact/5405c93a-60c6-46b4-b557-5a80bd28fc07

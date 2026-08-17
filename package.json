@@ -14,6 +14,7 @@
     "test": "node --test test/*.test.mjs",
     "server": "node packages/server/bin/earmark-server.js",
     "mcp": "node packages/mcp/bin/earmark-mcp.js",
-    "example": "node examples/serve.js"
+    "example": "node examples/serve.js",
+    "site:fragment": "node site/build-fragment.js"
   }
 }
