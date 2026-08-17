@@ -110,6 +110,20 @@ export function createTransport({ endpoint, sessionId, onState, onEvent }) {
     },
 
     /**
+     * Tell the broker this tab exists and which route it is on. Called on
+     * connect and again whenever the SPA navigates, so `list_sessions` shows an
+     * agent every route the human has been annotating.
+     *
+     * @param {object} page result of pageContext()
+     */
+    async registerSession(page) {
+      return request('/session', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, page }),
+      });
+    },
+
+    /**
      * @param {object[]} annotations
      * @param {object} page
      */

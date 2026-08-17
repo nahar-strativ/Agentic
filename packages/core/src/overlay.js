@@ -18,6 +18,7 @@ import { batchToMarkdown } from './markdown.js';
 const ROOT_ID = 'earmark-root';
 const HOST_STYLE_ID = 'earmark-host-css';
 const STORAGE_KEY = 'earmark:annotations';
+const SESSION_KEY = 'earmark:session';
 
 const ICONS = {
   pick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7.5 18 2.2-7.3L20 11.5z"/></svg>',
@@ -69,7 +70,19 @@ export function createOverlay(config) {
     throw new Error('earmark: an overlay is already mounted on this page');
   }
 
-  const sessionId = uid();
+  // sessionStorage is per-tab and survives reloads, which makes a session mean
+  // "this tab" rather than "this page load" — the grouping an agent can use.
+  const sessionId = (() => {
+    try {
+      const existing = sessionStorage.getItem(SESSION_KEY);
+      if (existing) return existing;
+      const fresh = uid();
+      sessionStorage.setItem(SESSION_KEY, fresh);
+      return fresh;
+    } catch {
+      return uid();
+    }
+  })();
 
   /** @type {object[]} */
   let annotations = persist ? loadStored() : [];
@@ -201,6 +214,7 @@ export function createOverlay(config) {
   async function reconcile() {
     if (!transport) return;
     try {
+      await transport.registerSession(pageContext());
       const { annotations: remote } = await transport.list();
       const byId = new Map(remote.map((a) => [a.id, a]));
 
@@ -228,6 +242,7 @@ export function createOverlay(config) {
         annotations[index] = { ...annotations[index], ...data };
         save();
         render();
+        if (data.status === 'acknowledged') showToast('Agent picked this up');
         if (data.status === 'needs-input') showToast('Agent asked a question');
         if (data.status === 'resolved') showToast('Agent resolved an annotation');
       }
@@ -741,6 +756,45 @@ export function createOverlay(config) {
   };
   window.addEventListener('resize', onLayoutChange);
 
+  // -------------------------------------------------------- route tracking --
+
+  // An SPA route change is not a page load, so nothing else would tell the
+  // broker the tab moved. Recording it keeps a session's `routes` list honest.
+  let lastRoute = location.pathname + location.search;
+  /** @type {(() => void) | null} */
+  let unpatchHistory = null;
+
+  function onRouteChange() {
+    const next = location.pathname + location.search;
+    if (next === lastRoute) return;
+    lastRoute = next;
+    transport?.registerSession(pageContext()).catch(() => {});
+  }
+
+  if (transport) {
+    window.addEventListener('popstate', onRouteChange);
+    window.addEventListener('hashchange', onRouteChange);
+
+    // pushState/replaceState fire no event; patching is the only way to see
+    // client-side navigation. Restored on destroy().
+    const originalPush = history.pushState;
+    const originalReplace = history.replaceState;
+    history.pushState = function patchedPush(...args) {
+      const result = originalPush.apply(this, args);
+      queueMicrotask(onRouteChange);
+      return result;
+    };
+    history.replaceState = function patchedReplace(...args) {
+      const result = originalReplace.apply(this, args);
+      queueMicrotask(onRouteChange);
+      return result;
+    };
+    unpatchHistory = () => {
+      history.pushState = originalPush;
+      history.replaceState = originalReplace;
+    };
+  }
+
   render();
 
   // ------------------------------------------------------------------ api --
@@ -756,11 +810,15 @@ export function createOverlay(config) {
     setMode,
     openPanel: () => togglePanel(true),
     closePanel: () => togglePanel(false),
+    sessionId,
     destroy() {
       picker.destroy();
       transport?.destroy();
+      unpatchHistory?.();
       window.removeEventListener('keydown', onGlobalKey);
       window.removeEventListener('resize', onLayoutChange);
+      window.removeEventListener('popstate', onRouteChange);
+      window.removeEventListener('hashchange', onRouteChange);
       document.documentElement.removeAttribute('data-earmark-frozen');
       hostStyle.remove();
       host.remove();

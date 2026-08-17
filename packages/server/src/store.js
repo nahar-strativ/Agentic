@@ -1,14 +1,27 @@
 /**
  * Annotation store: in-memory, JSON-persisted, with change notification for
  * both SSE subscribers (browser) and long-poll waiters (MCP `watch`).
+ *
+ * Also tracks **sessions** — one per browser tab. Annotations carry their own
+ * `page.url`, so a session groups the tab, not the route: annotating three
+ * routes of an SPA produces one session with three differently-routed
+ * annotations, which is what an agent wants to reason about.
  */
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
-/** @typedef {'open' | 'needs-input' | 'resolved' | 'dismissed'} Status */
+/** @typedef {'open' | 'acknowledged' | 'needs-input' | 'resolved' | 'dismissed'} Status */
 
-export const STATUSES = ['open', 'needs-input', 'resolved', 'dismissed'];
+/**
+ * Ordered by progress through the loop. `acknowledged` means the agent has read
+ * it and is working on it — distinct from `resolved`, which claims the edit is
+ * done. Without it a long fix looks identical to an ignored one.
+ */
+export const STATUSES = ['open', 'acknowledged', 'needs-input', 'resolved', 'dismissed'];
+
+/** Statuses that still represent outstanding work. */
+export const ACTIVE_STATUSES = ['open', 'acknowledged', 'needs-input'];
 
 const WRITE_DEBOUNCE_MS = 250;
 
@@ -21,6 +34,8 @@ export function createStore(options = {}) {
 
   /** @type {Map<string, any>} */
   const annotations = new Map();
+  /** @type {Map<string, any>} */
+  const sessions = new Map();
   /** @type {Set<(event: {type: string, data: any}) => void>} */
   const subscribers = new Set();
   /** @type {Array<{since: number, resolve: (v: any) => void, timer: NodeJS.Timeout, filter: any}>} */
@@ -69,7 +84,18 @@ export function createStore(options = {}) {
     if (!file) return;
     try {
       await mkdir(dirname(file), { recursive: true });
-      await writeFile(file, JSON.stringify({ cursor, annotations: [...annotations.values()] }, null, 2));
+      await writeFile(
+        file,
+        JSON.stringify(
+          {
+            cursor,
+            annotations: [...annotations.values()],
+            sessions: [...sessions.values()],
+          },
+          null,
+          2,
+        ),
+      );
     } catch (error) {
       process.stderr.write(`earmark: could not persist annotations — ${error.message}\n`);
     }
@@ -84,8 +110,104 @@ export function createStore(options = {}) {
       for (const annotation of parsed.annotations || []) {
         annotations.set(annotation.id, annotation);
       }
+      for (const session of parsed.sessions || []) {
+        // A restored session cannot be connected — no browser is attached yet.
+        sessions.set(session.id, { ...session, connected: false });
+      }
     } catch {
       /* no prior state — start empty */
+    }
+  }
+
+  // ------------------------------------------------------------- sessions --
+
+  /**
+   * Register a browser tab, or refresh what we know about one. Called on
+   * connect, on annotation push, and on SPA route changes.
+   *
+   * @param {string} id
+   * @param {{page?: object, connected?: boolean}} [info]
+   */
+  function touchSession(id, info = {}) {
+    if (!id) return null;
+    const now = new Date().toISOString();
+    const existing = sessions.get(id);
+
+    const session = {
+      id,
+      startedAt: existing?.startedAt || now,
+      connected: info.connected ?? existing?.connected ?? false,
+      url: info.page?.url ?? existing?.url ?? null,
+      title: info.page?.title ?? existing?.title ?? null,
+      framework: info.page?.framework ?? existing?.framework ?? null,
+      viewport: info.page?.viewport ?? existing?.viewport ?? null,
+      colorScheme: info.page?.colorScheme ?? existing?.colorScheme ?? null,
+      routes: existing?.routes ? [...existing.routes] : [],
+      lastSeenAt: now,
+    };
+
+    const path = info.page?.path ?? (info.page?.url ? safePath(info.page.url) : null);
+    if (path && !session.routes.includes(path)) session.routes.push(path);
+
+    sessions.set(id, session);
+    if (!existing) emit({ type: 'session.created', data: session });
+    return session;
+  }
+
+  /**
+   * @param {string} id
+   * @param {boolean} connected
+   */
+  function setSessionConnected(id, connected) {
+    const session = sessions.get(id);
+    if (!session) return touchSession(id, { connected });
+    session.connected = connected;
+    session.lastSeenAt = new Date().toISOString();
+    sessions.set(id, session);
+    return session;
+  }
+
+  /**
+   * Sessions with their annotation tallies. Most recently active first, because
+   * that is almost always the tab the human is looking at.
+   * @returns {any[]}
+   */
+  function listSessions() {
+    return [...sessions.values()]
+      .map((session) => ({ ...session, counts: countsFor(session.id) }))
+      .sort((a, b) => String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)));
+  }
+
+  /** @param {string} id */
+  function getSession(id) {
+    const session = sessions.get(id);
+    if (!session) return null;
+    return {
+      ...session,
+      counts: countsFor(id),
+      annotations: list({ sessionId: id }),
+    };
+  }
+
+  /** @param {string} sessionId */
+  function countsFor(sessionId) {
+    /** @type {Record<string, number>} */
+    const counts = { total: 0 };
+    for (const status of STATUSES) counts[status] = 0;
+    for (const annotation of annotations.values()) {
+      if (annotation.sessionId !== sessionId) continue;
+      counts.total += 1;
+      if (counts[annotation.status] != null) counts[annotation.status] += 1;
+    }
+    return counts;
+  }
+
+  /** @param {string} url */
+  function safePath(url) {
+    try {
+      return new URL(url).pathname;
+    } catch {
+      return null;
     }
   }
 
@@ -121,6 +243,7 @@ export function createStore(options = {}) {
       updatedAt: new Date().toISOString(),
     };
     annotations.set(annotation.id, annotation);
+    if (annotation.sessionId) touchSession(annotation.sessionId, { page: annotation.page });
     emit({ type: 'annotation.created', data: annotation });
     return annotation;
   }
@@ -228,6 +351,13 @@ export function createStore(options = {}) {
     clear,
     subscribe,
     waitForChange,
+    touchSession,
+    setSessionConnected,
+    listSessions,
+    getSession,
+    get sessionCount() {
+      return sessions.size;
+    },
     get cursor() {
       return cursor;
     },

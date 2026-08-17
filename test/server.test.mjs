@@ -185,6 +185,79 @@ test('SSE streams store events to connected browsers', async () => {
   controller.abort();
 });
 
+test('an SSE connection marks its session connected, and closing marks it gone', async () => {
+  await api('/session', {
+    method: 'POST',
+    body: JSON.stringify({ sessionId: 'tab-1', page: samplePage }),
+  });
+
+  const before = await api('/sessions/tab-1');
+  assert.equal(before.body.connected, false);
+
+  const controller = new AbortController();
+  const res = await fetch(`${base}/events?session=tab-1`, { signal: controller.signal });
+  const reader = res.body.getReader();
+  await reader.read(); // wait for the hello frame so the handler has run
+
+  const during = await api('/sessions/tab-1');
+  assert.equal(during.body.connected, true);
+
+  controller.abort();
+
+  // The close handler runs on the next tick or two.
+  for (let i = 0; i < 20; i += 1) {
+    const check = await api('/sessions/tab-1');
+    if (check.body.connected === false) break;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  const after = await api('/sessions/tab-1');
+  assert.equal(after.body.connected, false);
+});
+
+test('sessions carry their routes, counts and annotations', async () => {
+  await api('/annotations', {
+    method: 'POST',
+    body: JSON.stringify({
+      sessionId: 'tab-1',
+      page: { ...samplePage, url: 'http://localhost:5173/reports', path: '/reports' },
+      annotations: [{ note: 'report filter is cramped', targets: [sampleTarget] }],
+    }),
+  });
+
+  const { body } = await api('/sessions/tab-1');
+  assert.ok(body.routes.includes('/dash'));
+  assert.ok(body.routes.includes('/reports'));
+  assert.equal(body.counts.total, 1);
+  assert.equal(body.counts.open, 1);
+  assert.equal(body.annotations[0].note, 'report filter is cramped');
+
+  const all = await api('/sessions');
+  assert.ok(all.body.sessions.some((s) => s.id === 'tab-1'));
+});
+
+test('acknowledged is a real status, distinct from resolved', async () => {
+  const { body } = await api('/annotations?status=open');
+  const id = body.annotations[0].id;
+
+  const acked = await api(`/annotations/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'acknowledged' }),
+  });
+  assert.equal(acked.status, 200);
+  assert.equal(acked.body.status, 'acknowledged');
+
+  const listed = await api('/annotations?status=acknowledged');
+  assert.equal(listed.body.annotations.length, 1);
+
+  const resolved = await api('/annotations?status=resolved');
+  assert.ok(!resolved.body.annotations.some((a) => a.id === id));
+});
+
+test('POST /session without an id is rejected', async () => {
+  const { status } = await api('/session', { method: 'POST', body: JSON.stringify({ page: samplePage }) });
+  assert.equal(status, 400);
+});
+
 test('GET /markdown renders the agent-facing document', async () => {
   const res = await fetch(`${base}/markdown?status=open`);
   const body = await res.text();

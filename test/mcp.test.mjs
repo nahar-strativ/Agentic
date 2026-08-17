@@ -85,11 +85,14 @@ test('exposes the agent tool surface', async () => {
   const { tools } = await client.listTools();
   const names = tools.map((t) => t.name).sort();
   assert.deepEqual(names, [
+    'earmark_acknowledge',
     'earmark_ask',
     'earmark_clear',
     'earmark_dismiss',
     'earmark_get_annotation',
+    'earmark_get_session',
     'earmark_list_annotations',
+    'earmark_list_sessions',
     'earmark_resolve',
     'earmark_status',
     'earmark_watch_annotations',
@@ -165,7 +168,38 @@ test('resolve reports how many annotations remain', async () => {
     summary: 'Swapped the border for --surface-elevated',
   });
   assert.match(output, /Resolved/);
-  assert.match(output, /0 annotations still open/);
+  assert.match(output, /0 annotations still outstanding/);
+});
+
+test('acknowledge marks work in progress without claiming it is done', async () => {
+  const created = await overlayPush('The churn card is missing a trend line');
+
+  const output = await callTool('earmark_acknowledge', {
+    id: created.id,
+    note: 'Adding a sparkline to ChurnCard',
+  });
+  assert.match(output, /Acknowledged/);
+  assert.match(output, /blue/);
+
+  const detail = await callTool('earmark_get_annotation', { id: created.id });
+  assert.match(detail, /Status:\*\* acknowledged/);
+  assert.match(detail, /_agent_: Adding a sparkline to ChurnCard/);
+
+  // Still outstanding — an acknowledged item is not a finished one.
+  const listed = await callTool('earmark_list_annotations');
+  assert.match(listed, /The churn card is missing a trend line/);
+
+  await callTool('earmark_resolve', { id: created.id, summary: 'Added the sparkline' });
+});
+
+test('acknowledge defaults to a note rather than an empty reply', async () => {
+  const created = await overlayPush('Reset button should be secondary');
+  await callTool('earmark_acknowledge', { id: created.id });
+
+  const detail = await callTool('earmark_get_annotation', { id: created.id });
+  assert.match(detail, /_agent_: Picked up — working on it\./);
+
+  await callTool('earmark_dismiss', { id: created.id, reason: 'test cleanup' });
 });
 
 test('watch blocks and returns the annotation the human just added', async () => {
@@ -200,7 +234,78 @@ test('dismiss and clear', async () => {
   assert.match(cleared, /Cleared \d+ annotations/);
 
   const after = await callTool('earmark_status');
-  assert.match(after, /open: 0, needs-input: 0, resolved: 0, dismissed: 0/);
+  assert.match(after, /open: 0, acknowledged: 0, needs-input: 0, resolved: 0, dismissed: 0/);
+});
+
+test('sessions group annotations by browser tab', async () => {
+  await overlayPush('Dashboard header is misaligned');
+
+  const listed = await callTool('earmark_list_sessions');
+  assert.match(listed, /### Session `test`/);
+  assert.match(listed, /\*\*URL:\*\* http:\/\/localhost:5173\//);
+  assert.match(listed, /\*\*Annotations:\*\* 1 total, 1 outstanding/);
+});
+
+test('a session records every route the human annotated', async () => {
+  // The overlay posts this on connect and on each SPA navigation.
+  for (const path of ['/settings', '/billing']) {
+    await fetch(`${BROKER}/session`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'test',
+        page: { ...page, url: `http://localhost:5173${path}`, path, title: `Page ${path}` },
+      }),
+    });
+  }
+
+  const listed = await callTool('earmark_list_sessions');
+  assert.match(listed, /\*\*Routes annotated:\*\* \/, \/settings, \/billing/);
+  assert.match(listed, /\*\*URL:\*\* http:\/\/localhost:5173\/billing/);
+});
+
+test('get_session returns that tab and only that tab', async () => {
+  // A second tab, with its own annotation.
+  await fetch(`${BROKER}/annotations`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: 'other-tab',
+      page: { ...page, url: 'http://localhost:5173/admin' },
+      annotations: [{ note: 'Admin table overflows', targets: [target] }],
+    }),
+  });
+
+  const one = await callTool('earmark_get_session', { id: 'test' });
+  assert.match(one, /### Session `test`/);
+  assert.match(one, /Dashboard header is misaligned/);
+  assert.doesNotMatch(one, /Admin table overflows/);
+
+  const two = await callTool('earmark_get_session', { id: 'other-tab' });
+  assert.match(two, /Admin table overflows/);
+  assert.doesNotMatch(two, /Dashboard header is misaligned/);
+});
+
+test('list_annotations can be scoped to one session', async () => {
+  const scoped = await callTool('earmark_list_annotations', { session: 'other-tab' });
+  assert.match(scoped, /Admin table overflows/);
+  assert.doesNotMatch(scoped, /Dashboard header is misaligned/);
+
+  const both = await callTool('earmark_list_annotations');
+  assert.match(both, /Admin table overflows/);
+  assert.match(both, /Dashboard header is misaligned/);
+});
+
+test('unknown session ids fail loudly', async () => {
+  const result = await client.callTool({ name: 'earmark_get_session', arguments: { id: 'nope' } });
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /No session with id "nope"/);
+});
+
+test('connected_only reports honestly when no browser is attached', async () => {
+  // These sessions were created over plain HTTP; none holds an SSE stream.
+  const output = await callTool('earmark_list_sessions', { connected_only: true });
+  assert.match(output, /No browser tab is connected right now/);
 });
 
 test('unknown ids fail loudly rather than silently', async () => {

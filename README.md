@@ -122,10 +122,13 @@ That one process runs the MCP server *and* the broker the browser talks to.
 
 | Tool | Purpose |
 | --- | --- |
-| `earmark_list_annotations` | Everything open, as markdown (or `format: "json"`) |
+| `earmark_list_annotations` | Outstanding work, as markdown (or `format: "json"`); scope with `session` |
 | `earmark_watch_annotations` | **Blocks** until the human annotates something |
 | `earmark_get_annotation` | One annotation with its full reply thread |
-| `earmark_ask` | Ask a clarifying question — the pin turns amber in the browser |
+| `earmark_list_sessions` | Which browser tabs are open, and which routes were annotated |
+| `earmark_get_session` | One tab with every annotation it produced |
+| `earmark_acknowledge` | "I've read it, I'm on it" — the pin turns blue |
+| `earmark_ask` | Ask a clarifying question — the pin turns amber |
 | `earmark_resolve` | Mark done with a summary — the pin turns green |
 | `earmark_dismiss` | Decline with a reason the human sees |
 | `earmark_clear` | Delete everything |
@@ -134,11 +137,36 @@ That one process runs the MCP server *and* the broker the browser talks to.
 The fix loop this enables:
 
 ```
-watch → read the source path → edit the file → resolve → watch
+watch → acknowledge → read the source path → edit the file → resolve → watch
 ```
 
-and when the feedback is ambiguous, `ask` instead of guessing. The question
-appears on the pin; the human's answer wakes the next `watch`.
+`acknowledge` matters on anything slow: without it, an agent halfway through a
+refactor looks exactly like an agent that ignored you. Blue pin means picked up,
+green means actually done.
+
+When the feedback is ambiguous, `ask` instead of guessing. The question appears
+on the pin; the human's answer wakes the next `watch`.
+
+### Statuses
+
+`open` → `acknowledged` → `resolved`, with `needs-input` when the agent is
+waiting on a human and `dismissed` when it declines. Pins are colour-coded:
+orange, blue, green, amber, grey.
+
+### Sessions
+
+A session is **one browser tab**, not one page load — the id lives in
+`sessionStorage`, so it survives reloads. Annotations carry their own
+`page.url`, so a session that wandered across three routes gives an agent one
+group with three differently-routed items.
+
+SPA navigation is tracked too: `pushState`, `replaceState`, `popstate` and
+`hashchange` all update the session's route list. A tab counts as connected for
+exactly as long as its SSE stream is open.
+
+```bash
+curl http://127.0.0.1:7331/sessions
+```
 
 ---
 
@@ -186,13 +214,15 @@ curl http://127.0.0.1:7331/markdown
 | Route | |
 | --- | --- |
 | `GET /health` | liveness + counts |
-| `GET /annotations?status=open` | list |
+| `GET /annotations?status=open&session=ID` | list |
 | `POST /annotations` | create (batch) |
 | `GET /annotations/wait?since=N&timeout=30000` | long-poll |
 | `PATCH /annotations/:id` | update status |
 | `POST /annotations/:id/replies` | append to the thread |
 | `DELETE /annotations/:id` · `DELETE /annotations` | remove · clear |
-| `GET /events` | SSE stream |
+| `POST /session` | register a tab / record a route change |
+| `GET /sessions` · `GET /sessions/:id` | tabs, with counts and annotations |
+| `GET /events?session=ID` | SSE stream; also the tab's liveness signal |
 | `GET /markdown` | the agent-facing document |
 
 Flags: `--host --file --no-persist --token --quiet`.

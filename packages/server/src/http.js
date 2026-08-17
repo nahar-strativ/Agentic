@@ -69,12 +69,29 @@ export function createHttpServer(store, options = {}) {
         service: 'earmark-server',
         version: '0.1.0',
         count: store.size,
+        sessions: store.sessionCount,
         cursor: store.cursor,
       });
     }
 
     if (pathname === '/events' && method === 'GET') {
-      return stream(req, res);
+      return stream(req, res, url);
+    }
+
+    if (pathname === '/session' && method === 'POST') {
+      const body = await readJson(req);
+      const session = store.touchSession(body.sessionId, { page: body.page });
+      return session ? json(res, 200, session) : json(res, 400, { error: 'sessionId required' });
+    }
+
+    if (pathname === '/sessions' && method === 'GET') {
+      return json(res, 200, { sessions: store.listSessions() });
+    }
+
+    const sessionMatch = pathname.match(/^\/sessions\/([^/]+)$/);
+    if (sessionMatch && method === 'GET') {
+      const session = store.getSession(decodeURIComponent(sessionMatch[1]));
+      return session ? json(res, 200, session) : json(res, 404, { error: 'not found' });
     }
 
     if (pathname === '/markdown' && method === 'GET') {
@@ -150,8 +167,14 @@ export function createHttpServer(store, options = {}) {
    * Server-sent events: one long-lived response per connected browser tab.
    * @param {import('node:http').IncomingMessage} req
    * @param {import('node:http').ServerResponse} res
+   * @param {URL} url
    */
-  function stream(req, res) {
+  function stream(req, res, url) {
+    // The SSE connection *is* the liveness signal for a tab: it opens when the
+    // overlay mounts and closes when the tab does.
+    const sessionId = url.searchParams.get('session');
+    if (sessionId) store.setSessionConnected(sessionId, true);
+
     res.writeHead(200, {
       'content-type': 'text/event-stream',
       'cache-control': 'no-cache, no-transform',
@@ -172,6 +195,7 @@ export function createHttpServer(store, options = {}) {
     req.on('close', () => {
       clearInterval(heartbeat);
       unsubscribe();
+      if (sessionId) store.setSessionConnected(sessionId, false);
     });
   }
 

@@ -14,7 +14,8 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { createStore, createHttpServer, DEFAULT_PORT, DEFAULT_HOST } from 'earmark-server';
 import { batchToMarkdown, annotationToMarkdown } from 'earmark/markdown';
 
-const STATUS_ENUM = ['open', 'needs-input', 'resolved', 'dismissed'];
+const STATUS_ENUM = ['open', 'acknowledged', 'needs-input', 'resolved', 'dismissed'];
+const ACTIVE_STATUSES = ['open', 'acknowledged', 'needs-input'];
 
 const TOOLS = [
   {
@@ -22,14 +23,19 @@ const TOOLS = [
     description:
       'List UI annotations left by the human in the browser, rendered as markdown with CSS selectors, ' +
       'source file paths, component paths and computed styles. Call this first when the user mentions ' +
-      'visual feedback, annotations, or "what I marked on the page". Defaults to open annotations only.',
+      'visual feedback, annotations, or "what I marked on the page". Defaults to outstanding work only ' +
+      '(open, acknowledged, needs-input).',
     inputSchema: {
       type: 'object',
       properties: {
         status: {
           type: 'array',
           items: { type: 'string', enum: STATUS_ENUM },
-          description: 'Statuses to include. Defaults to ["open","needs-input"].',
+          description: 'Statuses to include. Defaults to ["open","acknowledged","needs-input"].',
+        },
+        session: {
+          type: 'string',
+          description: 'Only annotations from this browser tab. Get ids from earmark_list_sessions.',
         },
         format: {
           type: 'string',
@@ -37,6 +43,55 @@ const TOOLS = [
           description: 'markdown (default, compact and greppable) or json (full raw payload).',
         },
       },
+    },
+  },
+  {
+    name: 'earmark_list_sessions',
+    description:
+      'List browser tabs that have connected, newest activity first, with the routes annotated in each ' +
+      'and a per-status count. Use this when the human has been working across several pages and you ' +
+      'need to know which tab or route their feedback belongs to.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        connected_only: {
+          type: 'boolean',
+          description: 'Only tabs with a live connection right now. Default false.',
+        },
+      },
+    },
+  },
+  {
+    name: 'earmark_get_session',
+    description:
+      'One browser tab with every annotation it produced, as markdown. Use after earmark_list_sessions ' +
+      'to focus on a single tab or page.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        status: {
+          type: 'array',
+          items: { type: 'string', enum: STATUS_ENUM },
+          description: 'Filter the annotations. Defaults to all of them.',
+        },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'earmark_acknowledge',
+    description:
+      'Mark an annotation as picked up — you have read it and are working on it, but have not finished. ' +
+      'The pin turns blue in the browser. Call this before a long edit so the human can see you are on ' +
+      'it; call earmark_resolve when the change is actually made.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        note: { type: 'string', description: 'Optional: what you are about to do.' },
+      },
+      required: ['id'],
     },
   },
   {
@@ -194,16 +249,56 @@ export async function createEarmarkMcp(options = {}) {
   async function call(name, args) {
     switch (name) {
       case 'earmark_list_annotations': {
-        const status = args.status?.length ? args.status : ['open', 'needs-input'];
-        const items = store.list({ status });
+        const status = args.status?.length ? args.status : ACTIVE_STATUSES;
+        const items = store.list({ status, ...(args.session ? { sessionId: args.session } : {}) });
         if (!items.length) {
+          const scope = args.session ? ` in session ${args.session}` : '';
           return text(
-            `No ${status.join('/')} annotations. ` +
+            `No ${status.join('/')} annotations${scope}. ` +
               (store.size ? `${store.size} exist with other statuses.` : 'The human has not annotated anything yet.'),
           );
         }
         if (args.format === 'json') return text(JSON.stringify(items, null, 2));
         return text(`${batchToMarkdown(items, items[0].page)}\ncursor: ${store.cursor}`);
+      }
+
+      case 'earmark_list_sessions': {
+        let sessions = store.listSessions();
+        if (args.connected_only) sessions = sessions.filter((s) => s.connected);
+        if (!sessions.length) {
+          return text(
+            args.connected_only
+              ? 'No browser tab is connected right now. Ask the human to open the app with the earmark overlay mounted.'
+              : 'No sessions yet — no browser tab has ever connected to this broker.',
+          );
+        }
+        return text(sessions.map(sessionToMarkdown).join('\n'));
+      }
+
+      case 'earmark_get_session': {
+        const session = store.getSession(args.id);
+        if (!session) return text(`No session with id "${args.id}".`, true);
+
+        const items = args.status?.length
+          ? session.annotations.filter((a) => args.status.includes(a.status))
+          : session.annotations;
+
+        const header = sessionToMarkdown(session);
+        if (!items.length) return text(`${header}\nNo annotations match that filter.`);
+        return text(`${header}\n${batchToMarkdown(items, items[0].page, { instructions: false })}`);
+      }
+
+      case 'earmark_acknowledge': {
+        const updated = store.addReply(
+          args.id,
+          { author: 'agent', message: args.note || 'Picked up — working on it.' },
+          'acknowledged',
+        );
+        if (!updated) return text(`No annotation with id "${args.id}".`, true);
+        return text(
+          `Acknowledged ${args.id} — the pin is blue in the browser. ` +
+            'Call earmark_resolve once the edit is actually made.',
+        );
       }
 
       case 'earmark_watch_annotations': {
@@ -244,8 +339,8 @@ export async function createEarmarkMcp(options = {}) {
       case 'earmark_resolve': {
         const updated = store.addReply(args.id, { author: 'agent', message: args.summary }, 'resolved');
         if (!updated) return text(`No annotation with id "${args.id}".`, true);
-        const open = store.list({ status: ['open', 'needs-input'] }).length;
-        return text(`Resolved ${args.id}. ${open} annotation${open === 1 ? '' : 's'} still open.`);
+        const open = store.list({ status: ACTIVE_STATUSES }).length;
+        return text(`Resolved ${args.id}. ${open} annotation${open === 1 ? '' : 's'} still outstanding.`);
       }
 
       case 'earmark_dismiss': {
@@ -260,9 +355,13 @@ export async function createEarmarkMcp(options = {}) {
 
       case 'earmark_status': {
         const byStatus = STATUS_ENUM.map((s) => `${s}: ${store.list({ status: s }).length}`).join(', ');
+        const sessions = store.listSessions();
+        const live = sessions.filter((s) => s.connected);
         const lines = [
           address ? `Broker listening on ${address.url}` : `Broker NOT listening — ${httpError}`,
           `Annotations — ${byStatus}`,
+          `Sessions — ${sessions.length} known, ${live.length} connected`,
+          ...live.map((s) => `  · ${s.id} ${s.url || '(unknown url)'} — ${s.counts.total} annotations`),
           `Cursor: ${store.cursor}`,
           lastBrowserEvent
             ? `Last annotation received ${Math.round((Date.now() - lastBrowserEvent) / 1000)}s ago`
@@ -298,6 +397,42 @@ export async function createEarmarkMcp(options = {}) {
       await server.close();
     },
   };
+}
+
+/**
+ * One browser tab, summarised for an agent: where it is, whether it is still
+ * open, which routes were annotated, and how much work is outstanding.
+ *
+ * @param {any} session
+ * @returns {string}
+ */
+function sessionToMarkdown(session) {
+  const counts = session.counts || {};
+  const outstanding = ACTIVE_STATUSES.reduce((sum, s) => sum + (counts[s] || 0), 0);
+
+  const lines = [
+    `### Session \`${session.id}\`${session.connected ? ' — connected' : ''}`,
+    '',
+    `- **URL:** ${session.url || 'unknown'}`,
+  ];
+
+  if (session.title) lines.push(`- **Title:** ${session.title}`);
+  if (session.routes?.length > 1) lines.push(`- **Routes annotated:** ${session.routes.join(', ')}`);
+  if (session.framework && session.framework !== 'unknown') {
+    lines.push(`- **Framework:** ${session.framework}`);
+  }
+  if (session.viewport) {
+    lines.push(`- **Viewport:** ${session.viewport.width}×${session.viewport.height}`);
+  }
+
+  lines.push(
+    `- **Annotations:** ${counts.total ?? 0} total, ${outstanding} outstanding` +
+      (counts.resolved ? `, ${counts.resolved} resolved` : ''),
+  );
+  lines.push(`- **Last seen:** ${session.lastSeenAt}`);
+  lines.push('');
+
+  return lines.join('\n');
 }
 
 /**

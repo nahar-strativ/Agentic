@@ -64,9 +64,9 @@ browser click
   → overlay state (sessionStorage)
   ├─ markdown.js → clipboard                      [copy-paste mode]
   └─ transport.js → POST /annotations             [agent sync mode]
-        → store.js (in-memory + .earmark/annotations.json)
-        → MCP tools: list / watch / ask / resolve / dismiss
-        → agent replies push back over SSE → pin turns amber in the browser
+        → store.js (annotations + sessions, in-memory + .earmark/annotations.json)
+        → MCP tools: list / watch / sessions / acknowledge / ask / resolve / dismiss
+        → agent replies push back over SSE → pin recolours in the browser
 ```
 
 ### Core module responsibilities
@@ -187,7 +187,48 @@ no status to the broker, so the server sat on `needs-input` forever and the agen
 kept believing it was blocked. `transport.reply()` now sends `status: 'open'` by
 default. Both are covered by `test/transport.test.mjs`.
 
-### 4.11 Security posture
+### 4.11 Sessions (added 2026-08-17)
+
+**A session is one browser tab, not one page load.** The id lives in
+`sessionStorage`, which is per-tab and survives reloads — so refreshing does not
+fragment your feedback into three sessions.
+
+Annotations keep their own `page.url`. That split is the whole point: a session
+that wandered across `/dashboard`, `/settings` and `/billing` hands an agent one
+group containing three differently-routed items, rather than three unrelated
+buckets.
+
+- **Liveness = the SSE stream.** A tab is `connected` for exactly as long as its
+  `/events` connection is open. No heartbeat protocol, no timeout guessing.
+- **SPA routes.** `pushState`/`replaceState` fire no event, so the overlay
+  patches both (restored on `destroy()`) alongside `popstate` and `hashchange`.
+  Each navigation POSTs `/session`.
+- **`routes` tracks pathnames, `url` tracks the last full URL.** A query-string
+  change updates `url` but does not add a route — `?view=billing` is a view, not
+  a page.
+- Sessions restored from disk always load as `connected: false`; no browser is
+  attached to a freshly started broker.
+- Counts are derived from annotations, never stored, so they cannot drift.
+
+New: `POST /session`, `GET /sessions`, `GET /sessions/:id`, MCP
+`earmark_list_sessions` / `earmark_get_session`, and a `session` filter on
+`earmark_list_annotations`.
+
+### 4.12 The `acknowledged` status (added 2026-08-17)
+
+Statuses are now `open → acknowledged → resolved`, with `needs-input` when the
+agent is blocked on a human and `dismissed` when it declines.
+
+`acknowledged` exists because **an agent halfway through a refactor looked
+identical to an agent that ignored you**. Blue pin means picked up, green means
+the edit is actually made. `earmark_acknowledge` takes an optional note and
+files it as an agent reply, so the human sees *what* is being worked on.
+
+`ACTIVE_STATUSES` (`open`, `acknowledged`, `needs-input`) is now the default
+filter for `earmark_list_annotations` and the count in the `resolve` response —
+acknowledged work is outstanding work.
+
+### 4.13 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
 - Any page in the browser can reach a loopback port, so an optional `--token`
@@ -236,9 +277,11 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
 - [x] Clipboard copy with `execCommand` fallback for non-secure contexts
 - [x] `sessionStorage` persistence + reconnect reconciliation
 - [x] Broker: REST + SSE + long-poll + JSON persistence + optional token
-- [x] MCP: 8 tools, bidirectional ask/answer, resolve, dismiss
+- [x] MCP: 11 tools, bidirectional ask/answer, acknowledge, resolve, dismiss
+- [x] Sessions — one per tab, SPA route tracking, SSE-backed liveness (§4.11)
+- [x] `acknowledged` status with a blue pin (§4.12)
 - [x] Vite plugin: JSX source stamping + auto-inject
-- [x] 41 tests across four suites, all passing
+- [x] 53 tests across four suites, all passing
 - [x] Live browser verification of the whole loop, both directions:
       click → broker → markdown, and agent question → SSE → amber pin → human
       answer → broker
@@ -266,8 +309,8 @@ have that we do not:
 
 | Theirs | Us | Worth taking? |
 | --- | --- | --- |
-| **Sessions** — annotations grouped per page/tab, with `list_sessions`, `get_session`, `get_all_pending` | Flat list; `sessionId` is stored but never surfaced | **Yes.** Matters the moment you annotate across routes. |
-| **`acknowledge`** status — agent has seen it but has not acted | open / needs-input / resolved / dismissed only | **Yes.** Cheap, and it distinguishes "read" from "done". |
+| ~~**Sessions**~~ | **Built** — see §4.11 | Done 2026-08-17 |
+| ~~**`acknowledge`**~~ | **Built** — see §4.12 | Done 2026-08-17 |
 | SQLite store (`AGENTATION_STORE=sqlite\|memory`) | JSON file | Later. JSON is fine at this scale. |
 | Webhooks (`AGENTATION_WEBHOOK_URL`, `AGENTATION_WEBHOOKS`) | None | Later, if anyone asks. |
 | `init` and `doctor` CLI commands | None | `doctor` is nice DX; `earmark_status` already covers most of it. |
@@ -291,12 +334,13 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
 
 ## 7. Open questions for the user
 
-1. **Sessions + `acknowledge`** — add them? They are the two real gaps.
-2. **Screenshots** — worth the dependency weight for vision-model workflows?
-3. **Next.js support** — is that the primary target? If so the Turbopack/Babel
+1. **Screenshots** — worth the dependency weight for vision-model workflows?
+2. **Next.js support** — is that the primary target? If so the Turbopack/Babel
    stamping path moves up the list.
-4. **Distribution** — publish to npm, keep internal to Strativ, or vendor into a
+3. **Distribution** — publish to npm, keep internal to Strativ, or vendor into a
    specific project?
+4. **Freeze JS animations and videos too?** Currently CSS-only. `getAnimations()`
+   plus pausing `<video>` would close the last small gap against the reference.
 
 ---
 
@@ -326,3 +370,8 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
 - **2026-08-17** — Renamed `pindrop` → **earmark** (§5) and published to
   https://github.com/nahar-strativ/Agentic. All 41 tests re-run green after the
   rename.
+- **2026-08-17** — Closed both audit gaps: **sessions** (§4.11) and the
+  **`acknowledged`** status (§4.12). MCP surface 8 → 11 tools; suite 41 → 53
+  tests. Verified live: session registers and shows `connected: true` off the
+  SSE stream, `pushState` navigation appends to `routes`, and an agent
+  `acknowledge` turns the pin blue in the browser.

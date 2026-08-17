@@ -10,6 +10,7 @@ export const OVERLAY_CSS = /* css */ `
   --ea-accent-soft: rgba(249, 115, 22, 0.16);
   --ea-amber: #f5b73d;
   --ea-green: #34d399;
+  --ea-blue: #60a5fa;
   --ea-bg: #ffffff;
   --ea-bg-elev: #f6f7f9;
   --ea-fg: #16181d;
@@ -198,6 +199,7 @@ export const OVERLAY_CSS = /* css */ `
 }
 
 .pin:hover { transform: scale(1.15); }
+.pin[data-status="acknowledged"] { background: var(--ea-blue); color: #16181d; }
 .pin[data-status="needs-input"] { background: var(--ea-amber); color: #16181d; }
 .pin[data-status="resolved"] { background: var(--ea-green); color: #16181d; }
 .pin[data-status="dismissed"] { background: var(--ea-fg-dim); opacity: 0.6; }
@@ -358,6 +360,7 @@ export const OVERLAY_CSS = /* css */ `
   text-align: center;
   flex: none;
 }
+.item[data-status="acknowledged"] .item-index { background: var(--ea-blue); color: #16181d; }
 .item[data-status="needs-input"] .item-index { background: var(--ea-amber); color: #16181d; }
 .item[data-status="resolved"] .item-index { background: var(--ea-green); color: #16181d; }
 .item[data-status="dismissed"] .item-index { background: var(--ea-fg-dim); }
