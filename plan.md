@@ -591,6 +591,75 @@ smooth scrolling needs animation frames; and `:focus` matches nothing there, sin
 a hidden pane holds no document focus, even though `document.activeElement` is
 correctly set. Both were tooling artefacts read as page bugs until checked.
 
+### 4.27 Scroll-spy, and a documentation page (added 2026-08-18)
+
+**Scroll-spy.** The nav now marks whichever section you are reading, through
+`aria-current` rather than a class, so the accessible name carries the same fact as
+the highlight. The page still works with the script removed: no styling depends on
+state it creates, and every failure path returns quietly.
+
+It reads geometry on `scroll` rather than using IntersectionObserver. The rule
+wanted here is "the last section whose top has passed under the masthead", which is
+a comparison against one line on the page, not a visibility question; read directly
+it is a handful of rects per scroll event and it can be tested at any offset
+without waiting on observer callbacks. That last part mattered: **IntersectionObserver
+never fires at all in a hidden browser pane**, which is how the first implementation
+looked broken when it was not.
+
+**A documentation page**, `site/docs.html`, linked from the masthead, the hero and
+the footer: install, the feature list, the overlay, every `createEarmark` option,
+the four framework setups, the three source-resolution tiers, all eleven MCP tools
+with their arguments, statuses, sessions, the broker routes, storage, webhooks, the
+CLI, TypeScript, security, troubleshooting and limits. Every API fact in it was
+read out of the source rather than recalled.
+
+**The duplication is deliberate and tested.** Both pages carry their own copy of
+the design tokens, because each has to stay self-contained: `index.html` is
+exported as an embeddable fragment and the CSP on embedding targets blocks external
+stylesheets (§4.19). Duplication nobody checks drifts, so `test/site.test.mjs`
+asserts the two token blocks agree, that neither page fetches anything, that
+neither contains an em dash, that every contents entry resolves to a section, and
+that the workflow publishes both pages and not the build tool. It found real drift
+on the first run (`--page` was 1180px on one page and 1120px on the other), which
+was fixed by making them agree rather than by adding an exception.
+
+### 4.28 Verifying the assembled product (added 2026-08-18)
+
+`npm run verify` (`scripts/verify.mjs`) drives the product rather than its units:
+real servers on real ports, a real MCP process over stdio, real files on disk, a
+real webhook listener. It exists because of §4.25, where a bug passed 122 unit
+tests and failed the moment the pieces were assembled.
+
+Twenty features, all passing: every broker route including SSE and the long poll,
+the token gate, all three storage backends across a restart, webhook delivery
+alongside a deliberately hanging endpoint, the eleven MCP tools and the full
+acknowledge/ask/resolve loop, stamping through `earmark-stamp`, the Vite plugin and
+the webpack loader, and both CLI commands.
+
+Three checks failed on the first run and **all three were the harness, not the
+product**: `PATCH /annotations/:id` and `POST /annotations/:id/replies` return the
+annotation itself rather than a `{ annotation }` wrapper, and
+`/annotations/wait` takes `?timeout=` in milliseconds while the test had asked to
+wake on a `since` above the current cursor, which can never happen. Worth writing
+down, because "the test is wrong" is the more common outcome and reporting it as a
+product bug would have been the easy mistake.
+
+The overlay needs a browser, so it is verified separately and was: shadow-root
+isolation, `pointer-events: none`, all four pick modes, freeze (including the Web
+Animations API and restoring on unfreeze), the composer, priority, selector and
+source resolution with CSS rule mapping, the panel, markdown, and
+`sessionStorage` surviving a reload. Then the whole two-way loop against a live
+broker: reconcile on connect, session marked connected, agent acknowledge turning
+the pin blue, an agent question turning it amber with the thread in the panel, a
+human answer flipping it back to `open` and reaching the broker, and resolve
+turning it green.
+
+Two more harness artefacts, recorded so they are not rediscovered: the first
+overlay run reported a missing note and a dead priority control, and both were the
+test's fault. `.btn-primary` matched the panel's Copy button before the composer's
+Add button, and the priority control is a `<select>`, so clicking it changes
+nothing.
+
 ### 4.20 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
@@ -654,7 +723,9 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
 - [x] **Svelte** — markup stamping via the Vite plugin, or a preprocessor (§4.21)
 - [x] TypeScript declarations for all six packages, type-checked in CI (§4.22)
 - [x] AlignUI visual system across overlay and landing page (§4.23)
-- [x] 130 tests across twelve suites, all passing
+- [x] 138 tests across thirteen suites, all passing
+- [x] `npm run verify`: 20 assembled features checked live (§4.28)
+- [x] Documentation page and scroll-spy on the site (§4.27)
 - [x] Live browser verification of the whole loop, both directions:
       click → broker → markdown, and agent question → SSE → amber pin → human
       answer → broker
@@ -788,6 +859,13 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   intact, and a real webpack build driven by `withEarmark`'s own rule emits both
   stamps into the bundle. Left open deliberately: screenshots, iframes, mobile,
   publishing, and the Svelte component chain.
+- **2026-08-18** — Added a scroll-spy to the site nav and a full **documentation
+  page** at `site/docs.html`, linked from the masthead, hero and footer (§4.27).
+  Added `npm run verify`, which checks 20 assembled features against real servers,
+  a real MCP process and real files (§4.28); all 20 pass, and the three that failed
+  first were harness bugs, not product bugs. Suite 130 → 138 with
+  `test/site.test.mjs`, which caught real token drift between the two pages.
+  Overlay and the full two-way loop re-verified in the browser.
 - **2026-08-18** — Verified the MCP server live instead of re-reading the tests,
   and found a real bug the suite could not see: markdown rendering crashed on any
   annotation missing `page.viewport`, so the agent's main tool returned an error

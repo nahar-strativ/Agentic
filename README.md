@@ -26,9 +26,10 @@ npm install && npm run example
 Open http://127.0.0.1:5173/examples/vanilla/, click the arrow in the toolbar
 (bottom right) or press `alt+a`, then click anything on the page.
 
-The landing page and full guide is served alongside it at
-http://127.0.0.1:5173/site/ — source in [site/index.html](site/index.html), a
-single self-contained file with no dependencies.
+The landing page and the full documentation are served alongside it at
+http://127.0.0.1:5173/site/ and http://127.0.0.1:5173/site/docs.html. Both are
+live at https://nahar-strativ.github.io/Agentic/ and each is a single
+self-contained file with no dependencies.
 
 For live agent sync, run the broker in a second terminal:
 
@@ -420,6 +421,19 @@ declarations.
 ```bash
 npm run types
 ```
+
+Type-checks the hand-written declarations. To check the assembled product rather
+than its units:
+
+```bash
+npm run verify
+```
+
+Twenty features against real servers, a real MCP process over stdio, real files
+and a real webhook listener: every broker route, all three storage backends across
+a restart, the eleven MCP tools, stamping through all three integrations, and both
+CLI commands. It exists because a bug once passed 122 unit tests and failed the
+moment the pieces were put together.
 
 Type-checks `test/types/check.ts` against the hand-written `.d.ts` files. The
 `@ts-expect-error` lines in it are assertions too — they fail the build if the

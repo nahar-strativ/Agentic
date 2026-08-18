@@ -339,6 +339,13 @@
         color: var(--fg);
       }
 
+      /* Set by the scroll-spy at the bottom of this file. aria-current is the
+         state, so assistive tech is told the same thing the styling says. */
+      .masthead nav a[aria-current="true"] {
+        background: var(--primary-weak);
+        color: var(--primary);
+      }
+
       .masthead nav a.is-primary {
         background: var(--fg);
         color: var(--surface);
@@ -1016,6 +1023,7 @@
           <a href="#source">Source</a>
           <a href="#mcp">MCP</a>
           <a href="#broker">Broker</a>
+          <a href="./docs.html">Docs</a>
           <a class="is-primary" href="https://github.com/nahar-strativ/Agentic">GitHub</a>
         </nav>
       </header>
@@ -1033,6 +1041,7 @@
           </p>
           <div class="hero-actions">
             <span class="cmd"><span>$</span>npm install -D earmark</span>
+            <a class="ghost" href="./docs.html">Read the docs</a>
             <a class="ghost" href="https://github.com/nahar-strativ/Agentic"
               >Source on GitHub</a
             >
@@ -1737,8 +1746,70 @@ curl http://127.0.0.1:7331/markdown</pre>
         <span class="wordmark"><span class="dot"></span>earmark</span>
         <span class="spacer"></span>
         <span>MIT · clean-room implementation</span>
+        <a href="./docs.html">Documentation</a>
         <a href="https://github.com/nahar-strativ/Agentic">github.com/nahar-strativ/Agentic</a>
       </footer>
     </div>
+
+    <script>
+      /* Scroll-spy: marks the nav link for whichever section you are reading.
+
+         The page works without this. No styling depends on state this creates,
+         and every failure path leaves the nav exactly as the markup rendered it.
+
+         aria-current is the mechanism rather than a class, so the accessible name
+         carries the same fact as the highlight.
+
+         Geometry on scroll rather than IntersectionObserver: the rule wanted here
+         is "the last section whose top has passed under the masthead", which is a
+         comparison against one line on the page, not a visibility question. Read
+         directly it is a handful of rects per scroll event, and it is testable at
+         any scroll offset without waiting on observer callbacks. */
+      (function () {
+        var links = Array.prototype.slice.call(
+          document.querySelectorAll('.masthead nav a[href^="#"]')
+        );
+        if (!links.length) return;
+
+        var sections = [];
+        links.forEach(function (link) {
+          var section = document.getElementById(link.getAttribute('href').slice(1));
+          if (section) sections.push({ id: section.id, el: section, link: link });
+        });
+        if (!sections.length) return;
+
+        /* Matches the anchor offset, so a section becomes current exactly when it
+           stops being hidden behind the bar. */
+        var BAR = 96;
+        var last;
+
+        function paint() {
+          var current = null;
+          for (var i = 0; i < sections.length; i++) {
+            if (sections[i].el.getBoundingClientRect().top - BAR <= 1) {
+              current = sections[i].id;
+            }
+          }
+
+          /* Bottom of the page: the last section is current even if a short
+             final section never reaches the line. */
+          if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 2) {
+            current = sections[sections.length - 1].id;
+          }
+
+          if (current === last) return;
+          last = current;
+
+          sections.forEach(function (section) {
+            if (section.id === current) section.link.setAttribute('aria-current', 'true');
+            else section.link.removeAttribute('aria-current');
+          });
+        }
+
+        addEventListener('scroll', paint, { passive: true });
+        addEventListener('resize', paint);
+        paint();
+      })();
+    </script>
   </body>
 </html>

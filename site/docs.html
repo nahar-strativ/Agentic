@@ -1,0 +1,1190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>earmark documentation</title>
+    <meta
+      name="description"
+      content="How to use earmark: install the overlay, connect an agent over MCP, read the eleven tools, the broker API, storage, webhooks and the framework setups."
+    />
+    <meta property="og:title" content="earmark documentation" />
+    <meta property="og:description" content="Install, the overlay, the eleven MCP tools, the broker API, storage, webhooks, framework setup." />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://nahar-strativ.github.io/Agentic/docs.html" />
+    <meta property="og:site_name" content="earmark" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="theme-color" content="#f7f7f7" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20d%3D%22M4%209a5%205%200%200%201%205-5h14l5%205v14a5%205%200%200%201-5%205H9a5%205%200%200%201-5-5Z%22%20fill%3D%22%23fa7319%22%2F%3E%3Cpath%20d%3D%22M23%204l5%205h-5Z%22%20fill%3D%22%23ffffff%22%20fill-opacity%3D%22.92%22%2F%3E%3C%2Fsvg%3E" />
+    <style>
+      /* ============================================================
+         earmark documentation.
+
+         Same visual system as the landing page (AlignUI, rebuilt as our own
+         tokens). The token block below is duplicated rather than shared, because
+         both pages are deliberately self-contained: index.html is exported as an
+         embeddable fragment, and the CSP on embedding targets blocks external
+         stylesheets. test/site.test.mjs asserts the two token blocks agree, so
+         the duplication cannot drift silently.
+         ============================================================ */
+
+      :root {
+        --ground: #f7f7f7;
+        --surface: #ffffff;
+        --surface-sunk: #fafafa;
+        --stroke: #ebebeb;
+        --stroke-strong: #d1d1d1;
+        --fg: #171717;
+        --fg-dim: #5c5c5c;
+        --fg-soft: #a3a3a3;
+
+        --primary: #335cff;
+        --primary-hover: #2547d0;
+        --primary-weak: #ebf1ff;
+        --primary-alpha: rgba(71, 108, 255, 0.16);
+
+        --mark: #fa7319;
+        --mark-soft: rgba(255, 145, 71, 0.18);
+
+        --state-ack: #335cff;
+        --state-ask: #f6b51e;
+        --state-done: #1fc16b;
+        --state-off: #a3a3a3;
+
+        --code-bg: #ffffff;
+        --code-fg: #3d3d3d;
+        --tok-key: #8461e5;
+        --tok-fn: #e561b0;
+        --tok-num: #67a300;
+        --tok-com: #b1b1b1;
+        --tok-blue: #4777d6;
+
+        --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        --mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono",
+          "JetBrains Mono", Menlo, Consolas, monospace;
+
+        --r-sm: 8px;
+        --r: 10px;
+        --r-md: 12px;
+        --r-lg: 16px;
+        --r-xl: 20px;
+
+        --shadow-sm:
+          0 3px 3px -1.5px rgba(14, 18, 27, 0.03),
+          0 1px 1px -0.5px rgba(14, 18, 27, 0.03),
+          0 0 0 1px rgba(14, 18, 27, 0.06);
+        --shadow:
+          0 16px 32px -12px rgba(14, 18, 27, 0.08),
+          0 6px 6px -3px rgba(14, 18, 27, 0.03),
+          0 3px 3px -1.5px rgba(14, 18, 27, 0.03),
+          0 1px 1px -0.5px rgba(14, 18, 27, 0.03),
+          0 0 0 1px rgba(14, 18, 27, 0.06);
+
+        --bar: 96px;
+        --page: 1120px;
+        --gutter: 24px;
+
+        color-scheme: light;
+      }
+
+      /* No automatic dark, matching the landing page. Opt in by stamping
+         data-theme="dark" on the root element. */
+      :root[data-theme="dark"] {
+        --ground: #0f0f0f;
+        --surface: #171717;
+        --surface-sunk: #1c1c1c;
+        --stroke: #292929;
+        --stroke-strong: #454545;
+        --fg: #ffffff;
+        --fg-dim: #a3a3a3;
+        --fg-soft: #7b7b7b;
+
+        --primary: #4d82ff;
+        --primary-hover: #6895ff;
+        --primary-weak: rgba(77, 130, 255, 0.12);
+        --primary-alpha: rgba(77, 130, 255, 0.24);
+
+        --mark: #ffa468;
+        --mark-soft: rgba(255, 164, 104, 0.18);
+
+        --state-ack: #6895ff;
+        --state-ask: #ffd268;
+        --state-done: #3ee089;
+        --state-off: #7b7b7b;
+
+        --code-bg: #1c1c1c;
+        --code-fg: #d4d4d4;
+        --tok-key: #b39dff;
+        --tok-fn: #ff8fd0;
+        --tok-num: #8fd44a;
+        --tok-com: #6b6b6b;
+        --tok-blue: #7aa5f0;
+
+        color-scheme: dark;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html { scroll-padding-top: var(--bar); }
+
+      @media (prefers-reduced-motion: no-preference) {
+        html { scroll-behavior: smooth; }
+      }
+
+      [id] { scroll-margin-top: var(--bar); }
+
+      ::selection {
+        background: var(--mark-soft);
+        color: var(--fg);
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+        border-radius: 6px;
+      }
+
+      body {
+        margin: 0;
+        background: var(--ground);
+        color: var(--fg-dim);
+        font: 400 1rem/1.6 var(--sans);
+        letter-spacing: -0.011em;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .sheet {
+        max-width: var(--page);
+        margin: 0 auto;
+        padding: 0 var(--gutter) 96px;
+      }
+
+      /* ---------- masthead ---------- */
+
+      .masthead {
+        position: sticky;
+        top: 12px;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin: 12px 0 0;
+        padding: 8px 10px 8px 14px;
+        background: var(--surface);
+        background: color-mix(in srgb, var(--surface) 86%, transparent);
+        backdrop-filter: blur(12px) saturate(1.6);
+        border-radius: var(--r-xl);
+        box-shadow: var(--shadow);
+      }
+
+      .wordmark {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font: 500 0.9375rem/1 var(--sans);
+        letter-spacing: -0.015em;
+        color: var(--fg);
+        text-decoration: none;
+        white-space: nowrap;
+      }
+
+      .dot {
+        width: 22px;
+        height: 22px;
+        border-radius: 7px;
+        background:
+          linear-gradient(225deg, var(--surface) 0 6px, transparent 6px),
+          var(--mark);
+        box-shadow: inset 0 0 0 1px rgba(14, 18, 27, 0.08);
+        flex: none;
+      }
+
+      .masthead nav {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        margin-left: auto;
+      }
+
+      .masthead nav a {
+        padding: 6px 10px;
+        border-radius: var(--r);
+        font: 500 0.8125rem/1.4 var(--sans);
+        letter-spacing: -0.006em;
+        color: var(--fg-dim);
+        text-decoration: none;
+        white-space: nowrap;
+        transition: background 120ms, color 120ms;
+      }
+
+      .masthead nav a:hover {
+        background: var(--surface-sunk);
+        color: var(--fg);
+      }
+
+      .masthead nav a.is-here {
+        background: var(--primary-weak);
+        color: var(--primary);
+      }
+
+      .masthead nav a.is-primary {
+        background: var(--fg);
+        color: var(--surface);
+      }
+      .masthead nav a.is-primary:hover { opacity: 0.88; }
+
+      /* ---------- layout ---------- */
+
+      .lede {
+        max-width: 46rem;
+        margin: clamp(2.5rem, 6vw, 4rem) 0 0;
+      }
+
+      .lede h1 {
+        margin: 0 0 0.75rem;
+        color: var(--fg);
+        font-size: clamp(2rem, 4.5vw, 3rem);
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+        font-weight: 500;
+        text-wrap: balance;
+      }
+
+      .lede p {
+        margin: 0;
+        font-size: 1.0625rem;
+        line-height: 1.6;
+        letter-spacing: -0.015em;
+        text-wrap: pretty;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 208px minmax(0, 1fr);
+        gap: 48px;
+        margin-top: clamp(2rem, 5vw, 3.5rem);
+        align-items: start;
+      }
+
+      @media (max-width: 900px) {
+        .layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+      }
+
+      /* ---------- table of contents ---------- */
+
+      .toc {
+        position: sticky;
+        top: calc(var(--bar) + 8px);
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        max-height: calc(100vh - var(--bar) - 32px);
+        overflow-y: auto;
+      }
+
+      @media (max-width: 900px) {
+        .toc {
+          position: static;
+          max-height: none;
+          padding: 14px;
+          background: var(--surface);
+          border-radius: var(--r-lg);
+          box-shadow: var(--shadow-sm);
+        }
+      }
+
+      .toc-title {
+        margin-bottom: 8px;
+        font: 500 0.6875rem/1.45 var(--sans);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--fg-soft);
+      }
+
+      .toc a {
+        padding: 5px 10px;
+        border-radius: var(--r-sm);
+        font: 400 0.8125rem/1.5 var(--sans);
+        letter-spacing: -0.006em;
+        color: var(--fg-dim);
+        text-decoration: none;
+        transition: background 120ms, color 120ms;
+      }
+
+      .toc a:hover { background: var(--surface-sunk); color: var(--fg); }
+
+      /* Set by the scroll-spy at the bottom of this file. */
+      .toc a[aria-current="true"] {
+        background: var(--primary-weak);
+        color: var(--primary);
+        font-weight: 500;
+      }
+
+      /* ---------- sections ---------- */
+
+      section {
+        padding-top: clamp(2.5rem, 5vw, 3.5rem);
+      }
+
+      section:first-child { padding-top: 0; }
+
+      .eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 0.9rem;
+        font: 500 0.6875rem/1.45 var(--sans);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--fg-soft);
+      }
+
+      .eyebrow b {
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: var(--primary-weak);
+        color: var(--primary);
+        font: 500 0.6875rem/1.45 var(--mono);
+        letter-spacing: 0.02em;
+      }
+
+      h2 {
+        margin: 0 0 0.75rem;
+        color: var(--fg);
+        font-size: clamp(1.5rem, 2.6vw, 2rem);
+        line-height: 1.22;
+        letter-spacing: -0.022em;
+        font-weight: 500;
+        text-wrap: balance;
+      }
+
+      h3 {
+        margin: 1.75rem 0 0.6rem;
+        color: var(--fg);
+        font-size: 1.0625rem;
+        line-height: 1.5;
+        letter-spacing: -0.015em;
+        font-weight: 500;
+      }
+
+      p { margin: 0 0 0.9rem; max-width: 70ch; text-wrap: pretty; }
+
+      a { color: var(--primary); text-underline-offset: 2px; }
+      a:hover { color: var(--primary-hover); }
+
+      strong, b { color: var(--fg); font-weight: 500; }
+
+      code {
+        font: 400 0.875em/1.5 var(--mono);
+        letter-spacing: 0;
+        padding: 1px 5px;
+        border-radius: 6px;
+        background: var(--surface-sunk);
+        box-shadow: inset 0 0 0 1px var(--stroke);
+        color: var(--fg);
+      }
+
+      pre {
+        margin: 0 0 1rem;
+        padding: 16px 18px;
+        overflow-x: auto;
+        background: var(--code-bg);
+        border-radius: var(--r-md);
+        box-shadow: inset 0 0 0 1px var(--stroke);
+        font: 400 0.8125rem/1.75 var(--mono);
+        letter-spacing: 0;
+        color: var(--code-fg);
+        tab-size: 2;
+      }
+
+      pre .c { color: var(--tok-com); }
+      pre .s { color: var(--tok-key); }
+      pre .f { color: var(--tok-num); }
+      pre .k { color: var(--tok-fn); }
+      pre .v { color: var(--tok-blue); }
+      pre .m { color: var(--mark); }
+
+      /* ---------- tables ---------- */
+
+      .scroller {
+        margin: 0 0 1rem;
+        overflow-x: auto;
+        background: var(--surface);
+        border-radius: var(--r-lg);
+        box-shadow: var(--shadow-sm);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+        line-height: 1.6;
+        letter-spacing: -0.006em;
+      }
+
+      th {
+        padding: 11px 16px;
+        text-align: left;
+        background: var(--surface-sunk);
+        box-shadow: inset 0 -1px 0 var(--stroke);
+        font: 500 0.6875rem/1.45 var(--sans);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--fg-soft);
+        white-space: nowrap;
+      }
+
+      td {
+        padding: 12px 16px;
+        vertical-align: top;
+        box-shadow: inset 0 -1px 0 var(--stroke);
+        color: var(--fg-dim);
+      }
+
+      tbody tr:last-child td { box-shadow: none; }
+
+      td code { white-space: nowrap; }
+
+      .muted { color: var(--fg-soft); }
+
+      /* ---------- callouts, pills, lists ---------- */
+
+      .note {
+        margin: 0 0 1rem;
+        padding: 14px 16px;
+        border-radius: var(--r-md);
+        background: var(--primary-weak);
+        box-shadow: inset 0 0 0 1px var(--primary-alpha);
+      }
+
+      .note p:last-child { margin-bottom: 0; }
+
+      .warn {
+        background: var(--mark-soft);
+        box-shadow: inset 0 0 0 1px var(--mark-soft);
+      }
+
+      .pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 1rem;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 4px 11px 4px 9px;
+        border-radius: 999px;
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+        font: 500 0.75rem/1.5 var(--sans);
+        letter-spacing: -0.006em;
+        color: var(--fg-dim);
+      }
+
+      .pill i {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px 999px 999px 1px;
+        background: var(--state-off);
+      }
+
+      .pill.s-open i { background: var(--mark); }
+      .pill.s-ack i { background: var(--state-ack); }
+      .pill.s-ask i { background: var(--state-ask); }
+      .pill.s-done i { background: var(--state-done); }
+
+      ul {
+        margin: 0 0 1rem;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+        max-width: 70ch;
+      }
+
+      li {
+        position: relative;
+        padding-left: 18px;
+        font-size: 0.9375rem;
+        line-height: 1.6;
+        letter-spacing: -0.006em;
+      }
+
+      li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.65em;
+        width: 7px;
+        height: 1px;
+        background: var(--stroke-strong);
+      }
+
+      /* ---------- footer ---------- */
+
+      footer {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-top: clamp(3rem, 7vw, 5rem);
+        padding: 20px 22px;
+        background: var(--surface);
+        border-radius: var(--r-xl);
+        box-shadow: var(--shadow-sm);
+        font-size: 0.8125rem;
+        line-height: 1.6;
+        letter-spacing: -0.006em;
+        color: var(--fg-soft);
+      }
+
+      footer .spacer { flex: 1; }
+      footer a { text-decoration: none; font-weight: 500; }
+      footer a:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <header class="masthead">
+        <a class="wordmark" href="./"><span class="dot"></span>earmark</a>
+        <nav>
+          <a href="./">Overview</a>
+          <a class="is-here" href="./docs.html">Docs</a>
+          <a class="is-primary" href="https://github.com/nahar-strativ/Agentic">GitHub</a>
+        </nav>
+      </header>
+
+      <div class="lede">
+        <h1>Documentation</h1>
+        <p>
+          earmark turns a click in your running app into structured context an
+          agent can act on: a verified selector, the source file and line, the
+          component path, the computed styles and the exact box. This page is the
+          reference for all of it, from installing the overlay to the eleven tools
+          an agent calls.
+        </p>
+      </div>
+
+      <div class="layout">
+        <aside class="toc">
+          <div class="toc-title">On this page</div>
+          <a href="#install">Install</a>
+          <a href="#features">Feature list</a>
+          <a href="#overlay">Using the overlay</a>
+          <a href="#options">Options</a>
+          <a href="#frameworks">Framework setup</a>
+          <a href="#source">Source resolution</a>
+          <a href="#agent">Connecting an agent</a>
+          <a href="#tools">The eleven tools</a>
+          <a href="#statuses">Statuses</a>
+          <a href="#sessions">Sessions</a>
+          <a href="#api">Broker API</a>
+          <a href="#storage">Storage</a>
+          <a href="#webhooks">Webhooks</a>
+          <a href="#cli">CLI</a>
+          <a href="#types">TypeScript</a>
+          <a href="#security">Security</a>
+          <a href="#trouble">Troubleshooting</a>
+          <a href="#limits">Limits</a>
+        </aside>
+
+        <main>
+          <!-- ============================================== install ====== -->
+          <section id="install">
+            <div class="eyebrow"><b>01</b> Install</div>
+            <h2>Two lines to mount the overlay.</h2>
+            <p>
+              earmark ships as plain ESM with no build step of its own. Mount it
+              behind a development guard so it never reaches production.
+            </p>
+            <pre><span class="c">// main.js, anywhere that runs once</span>
+<span class="c">import</span> { createEarmark } <span class="c">from</span> <span class="s">'earmark'</span>
+
+<span class="c">if</span> (import.meta.env.DEV) createEarmark()</pre>
+
+            <h3>With no bundler at all</h3>
+            <p>
+              The overlay has zero runtime dependencies, so a script tag is a
+              complete installation.
+            </p>
+            <pre>&lt;script type=<span class="s">"module"</span> src=<span class="s">"/node_modules/earmark/src/index.js"</span> data-earmark-auto&gt;&lt;/script&gt;</pre>
+            <p>
+              <code>data-earmark-auto</code> mounts it immediately. Pass
+              <code>data-endpoint</code>, <code>data-hotkey</code> or
+              <code>data-theme</code> on the same tag to configure it.
+            </p>
+
+            <h3>The two ways to use it</h3>
+            <ul>
+              <li>
+                <strong>Copy-paste.</strong> Annotate, click <strong>Copy
+                markdown</strong>, paste into your agent's chat. Needs no server
+                and no configuration.
+              </li>
+              <li>
+                <strong>Agent sync.</strong> A local broker plus an MCP server let
+                the agent read annotations itself, ask you clarifying questions,
+                and mark them resolved. See
+                <a href="#agent">connecting an agent</a>.
+              </li>
+            </ul>
+          </section>
+
+          <!-- ============================================== features ===== -->
+          <section id="features">
+            <div class="eyebrow"><b>02</b> Feature list</div>
+            <h2>Everything earmark does.</h2>
+            <div class="scroller">
+              <table>
+                <thead>
+                  <tr><th>Feature</th><th>What it means</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>Click to annotate</strong></td><td>Hover highlights an element and names it; click to write what should change.</td></tr>
+                  <tr><td><strong>Four pick modes</strong></td><td>Single element, shift-click multi-select, text selection, dragged region.</td></tr>
+                  <tr><td><strong>Verified selectors</strong></td><td>Test ids, then id, then semantic attributes, then a scoped path. Every candidate is checked against the document before it is used, and build-hashed class names are filtered out.</td></tr>
+                  <tr><td><strong>Source file and line</strong></td><td><code>data-earmark-src</code> stamped at build time for JSX and Svelte, or resolved at annotation time for plain HTML and CSS.</td></tr>
+                  <tr><td><strong>Component paths</strong></td><td>React fiber, Vue instance and Angular tag walks, best effort, never required.</td></tr>
+                  <tr><td><strong>Computed styles</strong></td><td>Only properties that differ from their initial value, with layout properties reported only on layout containers.</td></tr>
+                  <tr><td><strong>Box geometry</strong></td><td>Size and page coordinates, so an agent knows what moved and by how much.</td></tr>
+                  <tr><td><strong>Freeze</strong></td><td>Pauses CSS animations and transitions, <code>element.animate()</code>, and <code>&lt;video&gt;</code> / <code>&lt;audio&gt;</code>, so you can annotate something that will not hold still.</td></tr>
+                  <tr><td><strong>Live pins</strong></td><td>Pins re-resolve their element on every render, so they survive reflow and re-renders instead of drifting.</td></tr>
+                  <tr><td><strong>Markdown output</strong></td><td>One serializer shared by browser, broker and agent, so the text is identical everywhere.</td></tr>
+                  <tr><td><strong>Priority</strong></td><td><code>high</code> / <code>normal</code> / <code>low</code>, sorted high first for the agent.</td></tr>
+                  <tr><td><strong>Two-way threads</strong></td><td>The agent can ask a clarifying question; your answer wakes it again.</td></tr>
+                  <tr><td><strong>Status lifecycle</strong></td><td><code>open</code>, <code>acknowledged</code>, <code>needs-input</code>, <code>resolved</code>, <code>dismissed</code>, each with a pin colour.</td></tr>
+                  <tr><td><strong>Sessions</strong></td><td>One per browser tab, tracking every route you annotated in it.</td></tr>
+                  <tr><td><strong>Local broker</strong></td><td>REST plus server-sent events plus long-poll, bound to loopback, with an optional token.</td></tr>
+                  <tr><td><strong>MCP server</strong></td><td>Eleven tools, running the broker in the same process.</td></tr>
+                  <tr><td><strong>Storage</strong></td><td>JSON, SQLite via <code>node:sqlite</code>, or memory, behind one adapter.</td></tr>
+                  <tr><td><strong>Webhooks</strong></td><td>Fire-and-forget delivery of annotation events, with a timeout and one retry.</td></tr>
+                  <tr><td><strong>Build integrations</strong></td><td>Vite plugin (JSX and Svelte), webpack and Turbopack loader for Next.js, and a Svelte preprocessor.</td></tr>
+                  <tr><td><strong>CLI</strong></td><td><code>init</code> registers the MCP server; <code>doctor</code> diagnoses the whole chain.</td></tr>
+                  <tr><td><strong>TypeScript</strong></td><td>Hand-written declarations for every package, with the domain types shared across the wire.</td></tr>
+                  <tr><td><strong>Copy-paste fallback</strong></td><td>Every failure path degrades to clipboard mode rather than breaking your app.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- ============================================== overlay ====== -->
+          <section id="overlay">
+            <div class="eyebrow"><b>03</b> Using the overlay</div>
+            <h2>Five tools, bottom right.</h2>
+            <p>
+              Press <code>alt+a</code> or click the arrow to start picking.
+              <code>Escape</code> cancels. <code>Cmd</code> or
+              <code>Ctrl</code> plus <code>Enter</code> saves an annotation from
+              the composer.
+            </p>
+            <div class="scroller">
+              <table>
+                <thead>
+                  <tr><th>Tool</th><th>What it does</th><th>Use it for</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>Pick</strong></td><td>Hover highlights an element and names it; click to annotate. Shift-click accumulates several elements, then click to finish.</td><td class="muted">Almost everything</td></tr>
+                  <tr><td><strong>Text</strong></td><td>Select text normally; the exact string is captured with the element around it.</td><td class="muted">Copy changes, typos</td></tr>
+                  <tr><td><strong>Region</strong></td><td>Drag a box; every element mostly inside it is reported, outermost first.</td><td class="muted">Layout and spacing</td></tr>
+                  <tr><td><strong>Freeze</strong></td><td>Pauses animations, transitions, JS-driven animation and media.</td><td class="muted">Spinners, carousels, toasts</td></tr>
+                  <tr><td><strong>Panel</strong></td><td>Lists annotations, shows agent replies, and copies the markdown.</td><td class="muted">Reviewing before you send</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              The overlay lives in a shadow root with
+              <code>pointer-events: none</code>, so your page's CSS cannot restyle
+              it, its CSS cannot leak into your page, and hit-testing still finds
+              the real element under the cursor. Picking clicks are swallowed in
+              the capture phase so your app does not react to them.
+            </p>
+          </section>
+
+          <!-- ============================================== options ====== -->
+          <section id="options">
+            <div class="eyebrow"><b>04</b> Options</div>
+            <h2>Everything <code>createEarmark</code> takes.</h2>
+            <pre>createEarmark({
+  endpoint: <span class="s">'http://127.0.0.1:7331'</span>,  <span class="c">// or false for copy-paste only</span>
+  hotkey:   <span class="s">'alt+a'</span>,
+  theme:    <span class="s">'auto'</span>,                    <span class="c">// 'auto' | 'light' | 'dark'</span>
+  persist:  <span class="f">true</span>,                      <span class="c">// keep annotations across reloads</span>
+  onAnnotate: (annotation) =&gt; {},
+})</pre>
+            <div class="scroller">
+              <table>
+                <thead>
+                  <tr><th>Option</th><th>Default</th><th>Notes</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>endpoint</code></td><td><code>http://127.0.0.1:7331</code></td><td>Broker URL, or <code>false</code> for copy-paste only. Fails quietly when nothing is listening.</td></tr>
+                  <tr><td><code>hotkey</code></td><td><code>alt+a</code></td><td>Accepts <code>alt</code>, <code>ctrl</code>, <code>shift</code>, <code>meta</code> or <code>cmd</code> plus a key.</td></tr>
+                  <tr><td><code>theme</code></td><td><code>auto</code></td><td><code>auto</code> follows the host page's colour scheme.</td></tr>
+                  <tr><td><code>persist</code></td><td><code>true</code></td><td>Keeps annotations in <code>sessionStorage</code>, which survives a reload and is per tab.</td></tr>
+                  <tr><td><code>onAnnotate</code></td><td>none</td><td>Called with each annotation as it is saved.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              The mounted instance is returned, and is also on
+              <code>window.earmark</code>: <code>markdown()</code>,
+              <code>copy()</code>, <code>clear()</code>,
+              <code>setMode(mode)</code>, <code>openPanel()</code>,
+              <code>closePanel()</code>, <code>annotations</code>,
+              <code>sessionId</code> and <code>destroy()</code>.
+            </p>
+          </section>
+
+          <!-- ============================================== frameworks === -->
+          <section id="frameworks">
+            <div class="eyebrow"><b>05</b> Framework setup</div>
+            <h2>The overlay works anywhere. Source stamping is per bundler.</h2>
+            <p>
+              Nothing here is required. Without it you still get selectors,
+              component names, text and styles, just not a file and line.
+            </p>
+
+            <h3>Vite, including SvelteKit</h3>
+            <pre><span class="c">// vite.config.js</span>
+<span class="c">import</span> earmark <span class="c">from</span> <span class="s">'vite-plugin-earmark'</span>
+
+<span class="c">export default</span> { plugins: [react(), earmark()] }</pre>
+            <p>
+              Stamps <code>.jsx</code>, <code>.tsx</code> and
+              <code>.svelte</code>, and injects the overlay so
+              <code>createEarmark()</code> in your app code becomes optional.
+              Options: <code>inject</code>, <code>endpoint</code>,
+              <code>theme</code>, <code>hotkey</code>, <code>include</code>,
+              <code>exclude</code>, <code>applyInBuild</code>.
+            </p>
+
+            <h3>Next.js</h3>
+            <pre><span class="c">// next.config.mjs</span>
+<span class="c">import</span> { withEarmark } <span class="c">from</span> <span class="s">'earmark-loader/next'</span>
+
+<span class="c">export default</span> withEarmark({})</pre>
+            <p>
+              A pre-loader for webpack and Turbopack rather than a Babel plugin,
+              because adding Babel would switch the project off SWC. Both
+              compilations are stamped, client and server: React hydration will
+              not add an attribute the server HTML did not have.
+            </p>
+            <p>
+              Next has no <code>index.html</code> to inject into, so mount the
+              overlay once in a client component:
+            </p>
+            <pre><span class="s">'use client'</span>
+<span class="c">import</span> { useEffect } <span class="c">from</span> <span class="s">'react'</span>
+
+<span class="c">export function</span> <span class="k">Earmark</span>() {
+  useEffect(() =&gt; {
+    <span class="c">if</span> (process.env.NODE_ENV !== <span class="s">'development'</span>) <span class="c">return</span>
+    <span class="c">import</span>(<span class="s">'earmark'</span>).then(({ createEarmark }) =&gt; createEarmark())
+  }, [])
+  <span class="c">return null</span>
+}</pre>
+
+            <h3>Svelte without Vite</h3>
+            <pre><span class="c">// svelte.config.js</span>
+<span class="c">import</span> { earmarkPreprocess } <span class="c">from</span> <span class="s">'earmark-stamp'</span>
+
+<span class="c">export default</span> { preprocess: [earmarkPreprocess()] }</pre>
+            <p>
+              Components, <code>&lt;svelte:*&gt;</code>, <code>&lt;slot&gt;</code>,
+              comments, <code>{expressions}</code> and the contents of
+              <code>&lt;script&gt;</code> and <code>&lt;style&gt;</code> are never
+              stamped. Stamping is idempotent, so running the plugin and the
+              preprocessor together is harmless.
+            </p>
+
+            <h3>Plain HTML and CSS</h3>
+            <p>
+              Nothing to configure. See
+              <a href="#source">source resolution</a>.
+            </p>
+          </section>
+
+          <!-- ============================================== source ======= -->
+          <section id="source">
+            <div class="eyebrow"><b>06</b> Source resolution</div>
+            <h2>Three tiers, in order of confidence.</h2>
+            <div class="scroller">
+              <table>
+                <thead>
+                  <tr><th>Tier</th><th>How</th><th>Reported as</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>Build stamp</strong></td><td><code>data-earmark-src</code> written onto the element by the Vite plugin, the Next loader or the Svelte preprocessor.</td><td><code>src/Card.tsx:42:7</code></td></tr>
+                  <tr><td><strong>Served page</strong></td><td>The document is re-fetched and parsed with position tracking, then the element's child-index path is walked in the source. Every step is checked against the live tag name.</td><td><code>index.html:101:11</code> <span class="muted">(resolved from the served HTML)</span></td></tr>
+                  <tr><td><strong>Always</strong></td><td>Verified unique selector, exact visible text, component chain, computed styles, box.</td><td class="muted">No file, but everything greppable</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              CSS is resolved separately and works everywhere: every rule the
+              element actually matches is mapped back to the file and line that
+              declares it, including rules inside a
+              <code>&lt;style&gt;</code> block, which are offset into their host
+              document rather than reported against a phantom file.
+            </p>
+            <div class="note">
+              <p>
+                When the served HTML is a framework shell, the walk mismatches
+                immediately and earmark reports nothing rather than a confidently
+                wrong line. A build-time stamp always wins over resolution.
+              </p>
+            </div>
+          </section>
+
+          <!-- ============================================== agent ======== -->
+          <section id="agent">
+            <div class="eyebrow"><b>07</b> Connecting an agent</div>
+            <h2>One process, one setup step.</h2>
+            <p>
+              The MCP server runs the annotation store, the HTTP endpoint your
+              browser talks to, and the stdio transport in a single process. There
+              is no second daemon to keep alive.
+            </p>
+            <pre>claude mcp add earmark -- npx -y earmark-mcp
+
+<span class="c"># or write it into the project's .mcp.json</span>
+npx earmark-mcp init</pre>
+            <p>
+              Then open your app with the overlay mounted. The sync dot in the
+              toolbar turns green when the browser and the broker have found each
+              other. If nothing is listening, the overlay stays fully usable in
+              copy-paste mode.
+            </p>
+          </section>
+
+          <!-- ============================================== tools ======== -->
+          <section id="tools">
+            <div class="eyebrow"><b>08</b> The eleven tools</div>
+            <h2>What the agent can call.</h2>
+            <div class="scroller">
+              <table>
+                <thead>
+                  <tr><th>Tool</th><th>Arguments</th><th>Purpose</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>earmark_list_annotations</code></td><td><code>status</code>, <code>session</code>, <code>priority</code>, <code>format</code></td><td>Outstanding work as markdown, or raw JSON. Defaults to the active statuses and always sorts high priority first.</td></tr>
+                  <tr><td><code>earmark_watch_annotations</code></td><td><code>since</code>, <code>timeout_seconds</code></td><td>Blocks until something changes. A long poll, not a busy loop, and it will not wake an agent with its own writes.</td></tr>
+                  <tr><td><code>earmark_get_annotation</code></td><td><code>id</code> <span class="muted">(required)</span></td><td>One annotation with its full reply thread.</td></tr>
+                  <tr><td><code>earmark_list_sessions</code></td><td><code>connected_only</code></td><td>Which browser tabs exist and which routes were annotated in each.</td></tr>
+                  <tr><td><code>earmark_get_session</code></td><td><code>id</code> <span class="muted">(required)</span>, <code>status</code></td><td>One tab with everything it produced.</td></tr>
+                  <tr><td><code>earmark_acknowledge</code></td><td><code>id</code> <span class="muted">(required)</span>, <code>note</code></td><td>"Read it, working on it." The pin turns blue. The note is filed as an agent reply.</td></tr>
+                  <tr><td><code>earmark_ask</code></td><td><code>id</code>, <code>question</code> <span class="muted">(both required)</span></td><td>Ask instead of guessing. The pin turns amber and your answer wakes the next watch.</td></tr>
+                  <tr><td><code>earmark_resolve</code></td><td><code>id</code>, <code>summary</code> <span class="muted">(both required)</span></td><td>Done, with a summary you can read. The pin turns green.</td></tr>
+                  <tr><td><code>earmark_dismiss</code></td><td><code>id</code>, <code>reason</code> <span class="muted">(both required)</span></td><td>Declined, with a reason. A dismissal without one is not allowed.</td></tr>
+                  <tr><td><code>earmark_clear</code></td><td>none</td><td>Delete everything.</td></tr>
+                  <tr><td><code>earmark_status</code></td><td>none</td><td>Is the overlay connected, which endpoint it should use, and how the counts break down.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="note">
+              <p>
+                A useful loop for an agent: <code>watch</code> to block,
+                <code>acknowledge</code> so the human can see it was picked up,
+                <code>ask</code> if the feedback is ambiguous, then
+                <code>resolve</code> with a summary.
+              </p>
+            </div>
+          </section>
+
+          <!-- ============================================== statuses ===== -->
+          <section id="statuses">
+            <div class="eyebrow"><b>09</b> Statuses</div>
+            <h2>Five states, five pin colours.</h2>
+            <div class="pills">
+              <span class="pill s-open"><i></i>open</span>
+              <span class="pill s-ack"><i></i>acknowledged</span>
+              <span class="pill s-ask"><i></i>needs input</span>
+              <span class="pill s-done"><i></i>resolved</span>
+              <span class="pill"><i></i>dismissed</span>
+            </div>
+            <p>
+              <code>acknowledged</code> exists because an agent halfway through a
+              refactor otherwise looks identical to an agent that ignored you.
+              Blue means picked up; green means the edit is actually made.
+            </p>
+            <p>
+              <code>open</code>, <code>acknowledged</code> and
+              <code>needs-input</code> are the active statuses, and are what
+              <code>earmark_list_annotations</code> returns unless you ask for
+              others. Acknowledged work is outstanding work.
+            </p>
+          </section>
+
+          <!-- ============================================== sessions ===== -->
+          <section id="sessions">
+            <div class="eyebrow"><b>10</b> Sessions</div>
+            <h2>A session is one tab, not one page load.</h2>
+            <p>
+              The id lives in <code>sessionStorage</code>, which is per tab and
+              survives reloads, so refreshing does not fragment your feedback into
+              three sessions. Each annotation still carries its own URL, so a
+              session that wandered across <code>/dashboard</code>,
+              <code>/settings</code> and <code>/billing</code> hands an agent one
+              group with three differently routed items.
+            </p>
+            <p>
+              A tab counts as connected for exactly as long as its
+              <code>/events</code> stream is open. No heartbeat protocol. Single
+              page app navigation is tracked too:
+              <code>pushState</code> and <code>replaceState</code> are patched,
+              and restored on <code>destroy()</code>.
+            </p>
+          </section>
+
+          <!-- ============================================== api ========== -->
+          <section id="api">
+            <div class="eyebrow"><b>11</b> Broker API</div>
+            <h2>Plain HTTP, if you would rather not use MCP.</h2>
+            <pre>npx earmark-server --port 7331</pre>
+            <div class="scroller">
+              <table>
+                <thead>
+                  <tr><th>Route</th><th>Does</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>GET /health</code></td><td>Liveness, plus annotation and session counts.</td></tr>
+                  <tr><td><code>GET /annotations</code></td><td>Everything, with a cursor.</td></tr>
+                  <tr><td><code>POST /annotations</code></td><td>What the overlay pushes: <code>sessionId</code>, <code>page</code>, <code>annotations</code>.</td></tr>
+                  <tr><td><code>DELETE /annotations</code></td><td>Clear them all.</td></tr>
+                  <tr><td><code>GET /annotations/wait</code></td><td>Long poll: blocks until something is newer than <code>?since=</code>.</td></tr>
+                  <tr><td><code>GET /annotations/:id</code></td><td>One annotation.</td></tr>
+                  <tr><td><code>PATCH /annotations/:id</code></td><td>Change status, note or priority.</td></tr>
+                  <tr><td><code>DELETE /annotations/:id</code></td><td>Remove one.</td></tr>
+                  <tr><td><code>POST /annotations/:id/replies</code></td><td>Add to the thread: <code>author</code>, <code>message</code>, optional <code>status</code>.</td></tr>
+                  <tr><td><code>GET /markdown</code></td><td>The same markdown the overlay copies.</td></tr>
+                  <tr><td><code>GET /events</code></td><td>Server-sent events. Holding this open is what makes a session connected.</td></tr>
+                  <tr><td><code>POST /session</code></td><td>Register a tab and its current route.</td></tr>
+                  <tr><td><code>GET /sessions</code></td><td>All tabs with their counts.</td></tr>
+                  <tr><td><code>GET /sessions/:id</code></td><td>One tab and its annotations.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              Flags: <code>--port</code>, <code>--host</code>,
+              <code>--store</code>, <code>--file</code>,
+              <code>--no-persist</code>, <code>--webhook</code> (repeatable),
+              <code>--token</code>, <code>--quiet</code>.
+            </p>
+          </section>
+
+          <!-- ============================================== storage ====== -->
+          <section id="storage">
+            <div class="eyebrow"><b>12</b> Storage</div>
+            <h2>JSON, SQLite, or nothing at all.</h2>
+            <pre>npx earmark-server --store sqlite
+npx earmark-server --store memory   <span class="c"># nothing on disk</span></pre>
+            <div class="scroller">
+              <table>
+                <thead>
+                  <tr><th>Backend</th><th>File</th><th>Behaviour</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>json</code> <span class="muted">(default)</span></td><td><code>.earmark/annotations.json</code></td><td>Debounced whole-file write. Readable and easy to delete.</td></tr>
+                  <tr><td><code>sqlite</code></td><td><code>.earmark/annotations.db</code></td><td>Uses <code>node:sqlite</code>, built into Node 22.5 and later, so a real database for zero dependencies. Writes are incremental, so a crash loses at most the statement in flight. Falls back to JSON if <code>node:sqlite</code> is unavailable.</td></tr>
+                  <tr><td><code>memory</code></td><td>none</td><td>Nothing is persisted.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              <code>EARMARK_STORE</code> sets the backend by environment instead of
+              a flag. Deleting <code>.earmark/</code> is a supported way to reset.
+            </p>
+          </section>
+
+          <!-- ============================================== webhooks ===== -->
+          <section id="webhooks">
+            <div class="eyebrow"><b>13</b> Webhooks</div>
+            <h2>Annotation events, POSTed out.</h2>
+            <pre>npx earmark-server --webhook https://hooks.example/earmark</pre>
+            <p>
+              Also <code>EARMARK_WEBHOOK_URL</code>, or
+              <code>EARMARK_WEBHOOKS</code> as a comma-separated list. Delivery is
+              fire-and-forget with a five second timeout, one retry on network
+              errors and 5xx, and none on 4xx. A hanging endpoint can never stall
+              the annotation loop, which is a tested property rather than an
+              intention.
+            </p>
+            <p>
+              Only annotation events are delivered. Session bookkeeping is durable
+              state, not news, and would be noise downstream.
+            </p>
+            <div class="note warn">
+              <p>
+                A webhook sends page URLs, element text and whatever you typed off
+                this machine. That is documented rather than made convenient.
+              </p>
+            </div>
+          </section>
+
+          <!-- ============================================== cli ========== -->
+          <section id="cli">
+            <div class="eyebrow"><b>14</b> CLI</div>
+            <h2>Register it, then diagnose it.</h2>
+            <pre>npx earmark-mcp init      <span class="c"># merge earmark into .mcp.json</span>
+npx earmark-mcp doctor    <span class="c"># why can the agent not see my annotations?</span></pre>
+            <p>
+              <code>init</code> preserves any other servers already registered.
+              <code>doctor</code> checks the chain in the order it breaks: Node
+              version, then <code>node:sqlite</code>, then MCP registration, then
+              whether the broker answers, then whether a browser tab is attached.
+              Each failing check prints the command that fixes it, and the exit
+              code is non-zero so CI can use it.
+            </p>
+            <pre><span class="f">✓</span> Node version: v24.12.0
+<span class="f">✓</span> sqlite backend: available
+<span class="f">✓</span> MCP registration: earmark is registered in .mcp.json
+<span class="f">✓</span> Broker: responding on http://127.0.0.1:7331 (1 annotations, 2 sessions)
+<span class="f">✓</span> Browser overlay: http://localhost:5173/ (1 annotations)
+
+Everything checks out.</pre>
+          </section>
+
+          <!-- ============================================== types ======== -->
+          <section id="types">
+            <div class="eyebrow"><b>15</b> TypeScript</div>
+            <h2>Declarations for every package.</h2>
+            <p>
+              Hand-written, not emitted: the source is JSDoc-typed JavaScript with
+              no build step, and generating declarations would add one. The domain
+              types live in <code>earmark</code> and are re-exported by
+              <code>earmark-server</code> and <code>earmark-mcp</code>, so an
+              annotation is the same type on both sides of the wire.
+            </p>
+            <pre><span class="c">import</span> { createEarmark, <span class="c">type</span> Annotation } <span class="c">from</span> <span class="s">'earmark'</span>
+
+<span class="c">const</span> overlay = createEarmark({ theme: <span class="s">'dark'</span> })
+<span class="c">const</span> pending: Annotation[] = overlay.annotations</pre>
+            <p>
+              Exported types include <code>Annotation</code>,
+              <code>Target</code>, <code>ElementTarget</code>,
+              <code>RegionTarget</code>, <code>Session</code>,
+              <code>Status</code>, <code>Priority</code>,
+              <code>PageContext</code>, <code>Rect</code> and
+              <code>CssRuleMatch</code>.
+            </p>
+          </section>
+
+          <!-- ============================================== security ===== -->
+          <section id="security">
+            <div class="eyebrow"><b>16</b> Security</div>
+            <h2>A development tool, scoped like one.</h2>
+            <ul>
+              <li>The broker binds <code>127.0.0.1</code> only.</li>
+              <li>
+                CORS is open by design: your dev server lives on an arbitrary
+                origin, and the overlay has to reach the broker from it.
+              </li>
+              <li>
+                Any page in your browser can reach a loopback port, so
+                <code>--token</code> gates every request when you want that.
+              </li>
+              <li>Request bodies are capped at 5 MB.</li>
+              <li>
+                Not for shared or public machines, and not something to run in
+                production.
+              </li>
+            </ul>
+          </section>
+
+          <!-- ============================================== trouble ====== -->
+          <section id="trouble">
+            <div class="eyebrow"><b>17</b> Troubleshooting</div>
+            <h2>The five things that usually go wrong.</h2>
+            <div class="scroller">
+              <table>
+                <thead>
+                  <tr><th>Symptom</th><th>Cause and fix</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>The agent sees nothing</td><td>Run <code>npx earmark-mcp doctor</code>. It checks the chain in order and prints the command that fixes the first broken link.</td></tr>
+                  <tr><td>Sync dot stays grey</td><td>Nothing is listening on the endpoint. Start the agent's MCP server, or run <code>npx earmark-server</code>. Copy-paste mode keeps working meanwhile.</td></tr>
+                  <tr><td>No file and line</td><td>Expected without a build integration. Add the Vite plugin, the Next loader or the Svelte preprocessor, or annotate a plain HTML page, where it is resolved at annotation time.</td></tr>
+                  <tr><td>Port already in use</td><td>Another editor already started a broker. The MCP server keeps working against its own store and says so in <code>earmark_status</code>.</td></tr>
+                  <tr><td>Overlay does not appear</td><td>It only mounts in a browser and only when your dev guard allows it. Check that <code>createEarmark()</code> actually ran, or use the <code>data-earmark-auto</code> script tag.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- ============================================== limits ======= -->
+          <section id="limits">
+            <div class="eyebrow"><b>18</b> Limits</div>
+            <h2>What it does not do.</h2>
+            <ul>
+              <li><strong>Desktop browsers only.</strong> There is no touch or mobile mode.</li>
+              <li><strong>No screenshots.</strong> Everything is structural: text, selectors, geometry, styles.</li>
+              <li><strong>Iframes are invisible.</strong> The overlay only sees its own document.</li>
+              <li><strong>Canvas and WebGL have nothing to annotate.</strong> Region mode will honestly report an empty area.</li>
+              <li><strong>Svelte component names are unavailable.</strong> There is no runtime hook, so a Svelte annotation carries the file and line instead of a component chain.</li>
+              <li><strong>Nothing is published to npm yet.</strong> Everything runs from source.</li>
+            </ul>
+          </section>
+        </main>
+      </div>
+
+      <footer>
+        <span class="wordmark"><span class="dot"></span>earmark</span>
+        <span class="spacer"></span>
+        <span>MIT · clean-room implementation</span>
+        <a href="https://github.com/nahar-strativ/Agentic">github.com/nahar-strativ/Agentic</a>
+      </footer>
+    </div>
+
+    <script>
+      /* Scroll-spy for the table of contents. Same rule as the landing page: the
+         last section whose top has passed under the masthead wins. The page is
+         fully usable without this. */
+      (function () {
+        var links = Array.prototype.slice.call(document.querySelectorAll('.toc a[href^="#"]'));
+        if (!links.length) return;
+
+        var sections = [];
+        links.forEach(function (link) {
+          var section = document.getElementById(link.getAttribute('href').slice(1));
+          if (section) sections.push({ id: section.id, el: section, link: link });
+        });
+        if (!sections.length) return;
+
+        var BAR = 96;
+        var last;
+
+        function paint() {
+          var current = null;
+          for (var i = 0; i < sections.length; i++) {
+            if (sections[i].el.getBoundingClientRect().top - BAR <= 1) {
+              current = sections[i].id;
+            }
+          }
+          if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 2) {
+            current = sections[sections.length - 1].id;
+          }
+          if (current === last) return;
+          last = current;
+
+          sections.forEach(function (section) {
+            if (section.id === current) section.link.setAttribute('aria-current', 'true');
+            else section.link.removeAttribute('aria-current');
+          });
+        }
+
+        addEventListener('scroll', paint, { passive: true });
+        addEventListener('resize', paint);
+        paint();
+      })();
+    </script>
+  </body>
+</html>
