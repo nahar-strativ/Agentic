@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>earmark: iframes and canvas</title>
+    <style>
+      body { margin: 0; padding: 24px; font: 15px/1.6 system-ui, sans-serif; background: #f7f7f7; color: #171717; }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      p.lede { margin: 0 0 20px; color: #5c5c5c; }
+      .row { display: flex; gap: 20px; flex-wrap: wrap; }
+      .panel { background: #fff; border: 1px solid #ebebeb; border-radius: 16px; padding: 16px; }
+      iframe { width: 340px; height: 220px; border: 1px solid #ebebeb; border-radius: 12px; background: #fff; }
+      canvas { border-radius: 12px; display: block; }
+      h2 { font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: #a3a3a3; margin: 0 0 10px; }
+    </style>
+  </head>
+  <body>
+    <h1>iframes and canvas</h1>
+    <p class="lede">
+      The left frame is same-origin, so the overlay can pick inside it. The canvas
+      has no DOM inside it, so earmark reports coordinates in its drawing buffer.
+    </p>
+
+    <div class="row">
+      <div class="panel">
+        <h2>Same-origin iframe</h2>
+        <iframe id="preview" name="preview" title="Preview pane" src="./child.html"></iframe>
+      </div>
+
+      <div class="panel">
+        <h2>Canvas</h2>
+        <canvas id="chart" width="640" height="360" style="width: 320px; height: 180px"></canvas>
+      </div>
+    </div>
+
+    <script type="module">
+      const canvas = document.getElementById('chart');
+      const ctx = canvas.getContext('2d');
+      // The buffer is 640x360 while the CSS box is 320x180, so buffer pixels are
+      // 2x CSS pixels. That ratio is the thing hit-testing bugs live in.
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 640, 360);
+      ctx.fillStyle = '#335cff';
+      const bars = [120, 200, 90, 260, 170, 300];
+      bars.forEach((h, i) => ctx.fillRect(40 + i * 95, 340 - h, 60, h));
+      ctx.fillStyle = '#fa7319';
+      ctx.fillRect(40 + 3 * 95, 340 - 260, 60, 260);
+
+      import('/node_modules/earmark/src/index.js').then(({ createEarmark }) => {
+        createEarmark({ theme: 'light' });
+      });
+    </script>
+  </body>
+</html>

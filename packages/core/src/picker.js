@@ -33,17 +33,87 @@ export function createPicker(handlers) {
 
   const root = document.documentElement;
 
+  /**
+   * Same-origin iframes the overlay can see into.
+   *
+   * Cross-origin frames are a browser security boundary, not a gap to work
+   * around: `contentDocument` throws or returns null and there is nothing
+   * further to try. Those are skipped, and the limitation is honest.
+   *
+   * @returns {Array<{el: HTMLIFrameElement, doc: Document}>}
+   */
+  function sameOriginFrames() {
+    /** @type {Array<{el: HTMLIFrameElement, doc: Document}>} */
+    const frames = [];
+    for (const el of Array.from(document.querySelectorAll('iframe'))) {
+      if (el.closest('#earmark-root')) continue;
+      try {
+        const doc = el.contentDocument;
+        if (doc && doc.documentElement) frames.push({ el, doc });
+      } catch {
+        /* cross-origin: not ours to read */
+      }
+    }
+    return frames;
+  }
+
+  /** Documents currently wired up, so detach can be exact. @type {Document[]} */
+  let wired = [];
+
+  /**
+   * The frame an element lives in, or null for the top document. Used to convert
+   * child coordinates into the top window's, and to tell an agent where to look.
+   *
+   * @param {Element | null} el
+   */
+  function frameOf(el) {
+    if (!el) return null;
+    const doc = el.ownerDocument;
+    if (!doc || doc === document) return null;
+    for (const frame of sameOriginFrames()) {
+      if (frame.doc === doc) return frame;
+    }
+    return null;
+  }
+
   /** @param {Event} e */
   const fromOverlay = (e) => {
     const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
     return path.some((n) => handlers.isOverlay(n)) || handlers.isOverlay(e.target);
   };
 
-  /** @param {MouseEvent} e */
+  /**
+   * The element under the pointer, descending into same-origin iframes.
+   *
+   * An event from a child document carries coordinates in *that* document's
+   * viewport, so hit-testing has to happen in the document the event came from.
+   *
+   * @param {MouseEvent} e
+   */
   const targetAt = (e) => {
-    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const doc = /** @type {Document} */ (
+      (e.target && /** @type {Node} */ (e.target).ownerDocument) || document
+    );
+    let el = doc.elementFromPoint(e.clientX, e.clientY);
+
+    /* An iframe is one element to the parent document. Descend into it so the
+       user picks what they are actually looking at. */
+    let guard = 0;
+    while (el && el.tagName === 'IFRAME' && guard < 4) {
+      guard += 1;
+      try {
+        const inner = /** @type {HTMLIFrameElement} */ (el).contentDocument;
+        if (!inner) break;
+        const box = el.getBoundingClientRect();
+        const next = inner.elementFromPoint(e.clientX - box.left, e.clientY - box.top);
+        if (!next) break;
+        el = next;
+      } catch {
+        break; // cross-origin
+      }
+    }
+
     if (!el || handlers.isOverlay(el)) return null;
-    if (el === document.documentElement || el === document.body) return el;
     return el;
   };
 
@@ -160,16 +230,44 @@ export function createPicker(handlers) {
     ['keydown', onKeyDown],
   ]);
 
+  /** @param {Document} doc */
+  function wire(doc) {
+    for (const [name, fn] of events) doc.addEventListener(name, fn, true);
+    wired.push(doc);
+  }
+
+  /**
+   * Same-origin frames get the same capture-phase listeners as the top document,
+   * so a click inside one is picked and swallowed exactly like any other.
+   * Frames that load later are picked up by the load listener below.
+   */
+  function wireFrames() {
+    for (const { doc } of sameOriginFrames()) {
+      if (!wired.includes(doc)) wire(doc);
+    }
+  }
+
+  /** A frame that navigates gets a brand new document, which needs wiring again. */
+  function onFrameLoad() {
+    wireFrames();
+  }
+
   function attach() {
-    for (const [name, fn] of events) document.addEventListener(name, fn, true);
+    wire(document);
+    wireFrames();
     window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', onScroll, true);
+    window.addEventListener('load', onFrameLoad, true);
   }
 
   function detach() {
-    for (const [name, fn] of events) document.removeEventListener(name, fn, true);
+    for (const doc of wired) {
+      for (const [name, fn] of events) doc.removeEventListener(name, fn, true);
+    }
+    wired = [];
     window.removeEventListener('scroll', onScroll, true);
     window.removeEventListener('resize', onScroll, true);
+    window.removeEventListener('load', onFrameLoad, true);
   }
 
   function reset() {
@@ -189,9 +287,24 @@ export function createPicker(handlers) {
       if (mode === next) return;
       mode = next;
       reset();
-      if (mode) root.setAttribute('data-earmark-picking', mode);
-      else root.removeAttribute('data-earmark-picking');
+      if (mode) {
+        /* Re-scan on every mode change: an SPA may have mounted a preview frame
+           since the overlay started. */
+        wireFrames();
+        root.setAttribute('data-earmark-picking', mode);
+        for (const { doc } of sameOriginFrames()) {
+          doc.documentElement.setAttribute('data-earmark-picking', mode);
+        }
+      } else {
+        root.removeAttribute('data-earmark-picking');
+        for (const { doc } of sameOriginFrames()) {
+          doc.documentElement.removeAttribute('data-earmark-picking');
+        }
+      }
     },
+    /** The frame an element belongs to, or null for the top document. */
+    frameOf,
+    sameOriginFrames,
     getMode: () => mode,
     clearPending: () => {
       pending = [];

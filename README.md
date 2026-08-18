@@ -443,10 +443,26 @@ error they name stops happening.
 
 ## Not supported
 
-Desktop browsers only. No iframes, no canvas/WebGL internals, no screenshots.
-Svelte component *names* are still unavailable (there is no runtime hook) — you
-get the file and line instead. See [plan.md](plan.md) for the full open list and
-the reasoning behind every design decision.
+Desktop browsers only, and no screenshots. **Cross-origin iframes** stay
+invisible, because that is a browser security boundary rather than a gap to work
+around; same-origin frames are pickable. Source resolution does not yet walk the
+served HTML and CSS *inside* a frame. A canvas has no DOM, so earmark reports its
+coordinate space rather than pretending otherwise. See [plan.md](plan.md) for the
+full open list and the reasoning behind every design decision.
+
+## Publishing
+
+All six packages are publish-ready: metadata, `LICENSE`, per-package README, and
+an allowlist so only `src`, `types`, `bin` and those two files ship. Check what
+would go out with `npm pack --dry-run` inside any package.
+
+```bash
+npm run release
+```
+
+Runs the suite and the live verification first, then `npm publish --workspaces`,
+which publishes in dependency order. It needs `npm login`, and publishing cannot
+be undone, so it is a command you run rather than one that runs for you.
 
 ---
 

@@ -606,6 +606,7 @@
               earmark ships as plain ESM with no build step of its own. Mount it
               behind a development guard so it never reaches production.
             </p>
+            <pre>npm install -D earmark</pre>
             <pre><span class="c">// main.js, anywhere that runs once</span>
 <span class="c">import</span> { createEarmark } <span class="c">from</span> <span class="s">'earmark'</span>
 
@@ -1127,11 +1128,56 @@ Everything checks out.</pre>
             <ul>
               <li><strong>Desktop browsers only.</strong> There is no touch or mobile mode.</li>
               <li><strong>No screenshots.</strong> Everything is structural: text, selectors, geometry, styles.</li>
-              <li><strong>Iframes are invisible.</strong> The overlay only sees its own document.</li>
-              <li><strong>Canvas and WebGL have nothing to annotate.</strong> Region mode will honestly report an empty area.</li>
-              <li><strong>Svelte component names are unavailable.</strong> There is no runtime hook, so a Svelte annotation carries the file and line instead of a component chain.</li>
-              <li><strong>Nothing is published to npm yet.</strong> Everything runs from source.</li>
+              <li><strong>Cross-origin iframes stay invisible.</strong> Same-origin frames are pickable (see below). A cross-origin frame is a browser security boundary: <code>contentDocument</code> throws and there is nothing further to try.</li>
+              <li><strong>Source resolution stops at a frame boundary.</strong> A build-time stamp inside a frame is read normally, but the served HTML and CSS of a framed document are not walked yet.</li>
+              <li><strong>A canvas has no DOM.</strong> earmark reports its coordinate space instead of pretending otherwise.</li>
             </ul>
+
+            <h3>Same-origin iframes</h3>
+            <p>
+              Picking descends into any iframe the overlay can read. The annotation
+              carries the element, the frame that holds it, and the frame's URL,
+              because a selector is only unique inside one document:
+            </p>
+            <pre>- **Element:** `&lt;button&gt;` button "Save"
+- **Selector:** <span class="m">[data-testid="frame-save"]</span>
+- **Inside iframe:** <span class="v">#preview</span> (preview)
+  - frame document: http://localhost:5173/examples/frames/child.html
+  - the selector above resolves inside that frame, not the top page</pre>
+            <p>
+              Pins are drawn in the top window but re-resolve inside the frame, so
+              they follow the element through reflow. Freeze reaches into frames
+              too, which matters because a preview pane is exactly the thing people
+              want to hold still.
+            </p>
+
+            <h3>Canvas and WebGL</h3>
+            <p>
+              There is nothing inside a canvas to select and no source line to
+              point at. What is actionable is the coordinate space the drawing code
+              works in, and in particular the ratio between the drawing buffer and
+              the CSS box, which is where hit-testing bugs live:
+            </p>
+            <pre>- **Canvas:**
+  - buffer 640×360, CSS 320×180 (2× / 2× per CSS pixel, dpr 2)
+  - context: <span class="s">`2d`</span>
+  - renderer: chart.js
+  - clicked at buffer pixel (354, 200)
+  - nothing inside a canvas is in the DOM; these coordinates are the handle</pre>
+            <p>
+              Dragging a region over a canvas reports the region in buffer pixels
+              and names the element it was drawn on, rather than only saying the
+              area was empty.
+            </p>
+
+            <h3>Svelte component chains</h3>
+            <p>
+              Closed. The stamper writes
+              <code>data-earmark-component</code> alongside the source position,
+              and the runtime rebuilds the chain by walking ancestors, so a Svelte
+              annotation now carries <code>App › Dashboard › Card</code> like a
+              React one.
+            </p>
           </section>
         </main>
       </div>

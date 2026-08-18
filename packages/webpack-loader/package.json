@@ -2,6 +2,25 @@
   "name": "earmark-loader",
   "version": "0.1.0",
   "description": "webpack and Turbopack loader that stamps JSX with file:line:col for earmark — the Next.js path to source-accurate annotations.",
+  "keywords": [
+    "earmark",
+    "webpack",
+    "turbopack",
+    "nextjs",
+    "loader",
+    "devtools"
+  ],
+  "license": "MIT",
+  "author": "nahar-strativ",
+  "homepage": "https://github.com/nahar-strativ/Agentic#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nahar-strativ/Agentic.git",
+    "directory": "packages/webpack-loader"
+  },
+  "bugs": {
+    "url": "https://github.com/nahar-strativ/Agentic/issues"
+  },
   "type": "module",
   "main": "./src/loader.cjs",
   "types": "./types/index.d.ts",
@@ -19,18 +38,17 @@
   },
   "files": [
     "src",
-    "types"
+    "types",
+    "LICENSE",
+    "README.md"
   ],
-  "keywords": [
-    "earmark",
-    "webpack",
-    "turbopack",
-    "nextjs",
-    "loader",
-    "devtools"
-  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "earmark-stamp": "0.1.0"
-  },
-  "license": "MIT"
+  }
 }

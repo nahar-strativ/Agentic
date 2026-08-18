@@ -2,6 +2,25 @@
   "name": "earmark",
   "version": "0.1.0",
   "description": "Click-to-annotate overlay that gives AI coding agents structured context about your UI.",
+  "keywords": [
+    "annotation",
+    "ai",
+    "agent",
+    "mcp",
+    "devtools",
+    "feedback"
+  ],
+  "license": "MIT",
+  "author": "nahar-strativ",
+  "homepage": "https://github.com/nahar-strativ/Agentic#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nahar-strativ/Agentic.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/nahar-strativ/Agentic/issues"
+  },
   "type": "module",
   "main": "./src/index.js",
   "module": "./src/index.js",
@@ -34,16 +53,15 @@
   },
   "files": [
     "src",
-    "types"
+    "types",
+    "LICENSE",
+    "README.md"
   ],
   "sideEffects": false,
-  "keywords": [
-    "annotation",
-    "ai",
-    "agent",
-    "mcp",
-    "devtools",
-    "feedback"
-  ],
-  "license": "MIT"
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

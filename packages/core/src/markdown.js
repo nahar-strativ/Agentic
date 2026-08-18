@@ -43,7 +43,14 @@ function targetLines(target) {
   if (target.kind === 'region') {
     lines.push(`- **Target:** screen region ${boxOf(target.rect)}`);
     if (target.emptyRegion) {
-      lines.push('- **Contents:** empty area — no elements fully inside this region');
+      lines.push('- **Contents:** no elements fully inside this region');
+      if (target.container) {
+        const src = target.container.source ? ` — \`${target.container.source}\`` : '';
+        lines.push(
+          `- **Drawn on:** ${target.container.label} → \`${target.container.selector}\`${src}`,
+        );
+        lines.push(...canvasLines(target.container.canvas));
+      }
     } else {
       lines.push('- **Elements inside:**');
       for (const el of target.elements || []) {
@@ -57,6 +64,15 @@ function targetLines(target) {
   const tag = target.tag ? `\`<${target.tag}>\` ` : '';
   lines.push(`- **Element:** ${tag}${target.label}`);
   lines.push(`- **Selector:** \`${target.selector}\``);
+
+  /* A selector is unique within one document. Saying which document has to come
+     with it, or the agent runs it in the wrong one. */
+  if (target.frame) {
+    const where = target.frame.name ? ` (${target.frame.name})` : '';
+    lines.push(`- **Inside iframe:** \`${target.frame.selector}\`${where}`);
+    if (target.frame.url) lines.push(`  - frame document: ${target.frame.url}`);
+    lines.push('  - the selector above resolves inside that frame, not the top page');
+  }
 
   if (target.source) {
     // `sourceExact: false` is a claim the overlay makes deliberately. Absent is
@@ -94,6 +110,8 @@ function targetLines(target) {
   const box = boxOf(target.rect);
   if (box) lines.push(`- **Box:** ${box}`);
 
+  lines.push(...canvasLines(target.canvas));
+
   const styles = styleLine(target.styles);
   if (styles) lines.push(`- **Computed:** ${styles}`);
 
@@ -119,6 +137,36 @@ function targetLines(target) {
     lines.push(`- **DOM path:** \`${target.domPath}\``);
   }
 
+  return lines;
+}
+
+/**
+ * A canvas has no DOM inside it and no source line to point at, so what an agent
+ * can actually use is the coordinate space its drawing code works in. The buffer
+ * is frequently a different size from the CSS box, and that ratio is exactly what
+ * hit-testing bugs live in.
+ *
+ * @param {any} canvas
+ * @returns {string[]}
+ */
+function canvasLines(canvas) {
+  if (!canvas) return [];
+  const lines = ['- **Canvas:**'];
+  lines.push(
+    `  - buffer ${canvas.buffer.width}×${canvas.buffer.height}, CSS ${canvas.css.width}×${canvas.css.height}` +
+      ` (${canvas.scale.x}× / ${canvas.scale.y}× per CSS pixel, dpr ${canvas.devicePixelRatio})`,
+  );
+  if (canvas.context) lines.push(`  - context: \`${canvas.context}\``);
+  if (canvas.library) lines.push(`  - renderer: ${canvas.library}`);
+  if (canvas.point) {
+    lines.push(`  - clicked at buffer pixel (${canvas.point.x}, ${canvas.point.y})`);
+  }
+  if (canvas.region) {
+    lines.push(
+      `  - region in buffer pixels: ${canvas.region.width}×${canvas.region.height} at (${canvas.region.x}, ${canvas.region.y})`,
+    );
+  }
+  lines.push('  - nothing inside a canvas is in the DOM; these coordinates are the handle');
   return lines;
 }
 

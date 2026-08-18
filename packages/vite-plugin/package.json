@@ -2,6 +2,17 @@
   "name": "vite-plugin-earmark",
   "version": "0.1.0",
   "description": "Stamps JSX and Svelte elements with their source file, line and column so earmark annotations point straight at the code.",
+  "license": "MIT",
+  "author": "nahar-strativ",
+  "homepage": "https://github.com/nahar-strativ/Agentic#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nahar-strativ/Agentic.git",
+    "directory": "packages/vite-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/nahar-strativ/Agentic/issues"
+  },
   "type": "module",
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
@@ -13,13 +24,20 @@
   },
   "files": [
     "src",
-    "types"
+    "types",
+    "LICENSE",
+    "README.md"
   ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "vite": ">=4"
   },
   "dependencies": {
     "earmark-stamp": "0.1.0"
-  },
-  "license": "MIT"
+  }
 }

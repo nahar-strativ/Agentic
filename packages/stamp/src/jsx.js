@@ -14,6 +14,12 @@ import MagicString from 'magic-string';
 export const SOURCE_ATTR = 'data-earmark-src';
 
 /**
+ * The component an element was written in. Only build-time stampers can know
+ * this for Svelte, which exposes no runtime equivalent of a React fiber.
+ */
+export const COMPONENT_ATTR = 'data-earmark-component';
+
+/**
  * Elements that either cannot carry an unknown attribute or where one would be
  * actively harmful.
  */

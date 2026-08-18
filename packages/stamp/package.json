@@ -2,6 +2,24 @@
   "name": "earmark-stamp",
   "version": "0.1.0",
   "description": "Bundler-agnostic source stamping for earmark — adds data-earmark-src file:line:col to JSX and Svelte elements.",
+  "keywords": [
+    "earmark",
+    "jsx",
+    "svelte",
+    "source",
+    "devtools"
+  ],
+  "license": "MIT",
+  "author": "nahar-strativ",
+  "homepage": "https://github.com/nahar-strativ/Agentic#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nahar-strativ/Agentic.git",
+    "directory": "packages/stamp"
+  },
+  "bugs": {
+    "url": "https://github.com/nahar-strativ/Agentic/issues"
+  },
   "type": "module",
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
@@ -21,19 +39,19 @@
   },
   "files": [
     "src",
-    "types"
+    "types",
+    "LICENSE",
+    "README.md"
   ],
   "sideEffects": false,
-  "keywords": [
-    "earmark",
-    "jsx",
-    "svelte",
-    "source",
-    "devtools"
-  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@babel/parser": "^7.24.0",
     "magic-string": "^0.30.0"
-  },
-  "license": "MIT"
+  }
 }

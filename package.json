@@ -17,7 +17,8 @@
     "example": "node examples/serve.js",
     "site:fragment": "node site/build-fragment.js",
     "types": "tsc -p tsconfig.json",
-    "verify": "node scripts/verify.mjs"
+    "verify": "node scripts/verify.mjs",
+    "release": "npm test && npm run verify && npm publish --workspaces --access public"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

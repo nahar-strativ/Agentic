@@ -103,6 +103,6 @@ test('injection can be turned off', () => {
 
 test('stamps .svelte markup too — before vite-plugin-svelte compiles it away', () => {
   const result = transform('<button class="go">Go</button>', '/repo/src/lib/Card.svelte');
-  assert.match(result.code, /<button data-earmark-src="src\/lib\/Card\.svelte:1:1" class="go">/);
+  assert.match(result.code, /<button data-earmark-src="src\/lib\/Card\.svelte:1:1"[^>]* class="go">/);
   assert.equal(earmark().enforce, 'pre', 'ordering is what makes svelte stamping possible');
 });

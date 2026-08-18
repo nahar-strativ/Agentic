@@ -366,7 +366,11 @@ export function createOverlay(config) {
     let targets = [];
 
     if (payload.type === 'elements') {
-      targets = payload.elements.map(extractElement);
+      /* The click point only matters for a canvas, where it is the difference
+         between "somewhere in the chart" and a buffer pixel. */
+      targets = payload.elements.map((el) =>
+        extractElement(el, { point, frame: picker.frameOf(el) }),
+      );
     } else if (payload.type === 'text') {
       const extracted = extractSelection(payload.selection);
       if (!extracted) return;
@@ -447,6 +451,10 @@ export function createOverlay(config) {
     await Promise.all(
       annotation.targets.map(async (target) => {
         if (!target.selector) return;
+        /* Resolution reads *this* document and its stylesheets. Running a framed
+           selector here could match an unrelated element in the parent page and
+           report a confidently wrong line, which is worse than reporting none. */
+        if (target.frame) return;
         const el = safeQuery(target.selector);
         if (!el) return;
 
@@ -503,6 +511,9 @@ export function createOverlay(config) {
   let pausedMedia = [];
   /** @type {ReturnType<typeof setInterval> | null} */
   let freezeSweep = null;
+  /** Frame documents we injected freeze styles into, so unfreeze can undo it. */
+  /** @type {Document[]} */
+  let frozenFrames = [];
 
   /**
    * Freeze anything that moves.
@@ -520,6 +531,11 @@ export function createOverlay(config) {
 
     if (!on) {
       document.documentElement.removeAttribute('data-earmark-frozen');
+      for (const doc of frozenFrames) {
+        doc.documentElement.removeAttribute('data-earmark-frozen');
+        doc.getElementById('earmark-host-css')?.remove();
+      }
+      frozenFrames = [];
       if (freezeSweep) clearInterval(freezeSweep);
       freezeSweep = null;
       for (const animation of pausedAnimations) {
@@ -544,8 +560,26 @@ export function createOverlay(config) {
   }
 
   function pauseEverything() {
-    if (typeof document.getAnimations === 'function') {
-      for (const animation of document.getAnimations()) {
+    pauseIn(document);
+    /* A preview pane is exactly the place someone wants to freeze, so the same
+       treatment is applied inside every frame we can reach. */
+    for (const { doc } of picker.sameOriginFrames()) {
+      if (!frozenFrames.includes(doc)) {
+        const style = doc.createElement('style');
+        style.id = 'earmark-host-css';
+        style.textContent = HOST_CSS;
+        doc.head?.append(style);
+        doc.documentElement.setAttribute('data-earmark-frozen', '');
+        frozenFrames.push(doc);
+      }
+      pauseIn(doc);
+    }
+  }
+
+  /** @param {Document} doc */
+  function pauseIn(doc) {
+    if (typeof doc.getAnimations === 'function') {
+      for (const animation of doc.getAnimations()) {
         // Never pause the overlay's own toast and highlight transitions.
         const target = /** @type {any} */ (animation.effect)?.target;
         if (target && (target === host || host.contains(target) || target.getRootNode?.() === shadow)) {
@@ -561,7 +595,7 @@ export function createOverlay(config) {
       }
     }
 
-    for (const media of Array.from(document.querySelectorAll('video, audio'))) {
+    for (const media of Array.from(doc.querySelectorAll('video, audio'))) {
       const element = /** @type {HTMLMediaElement} */ (media);
       if (element.paused || pausedMedia.includes(element)) continue;
       element.pause();
@@ -594,13 +628,46 @@ export function createOverlay(config) {
   function liveRect(target) {
     if (target.selector) {
       try {
-        const el = document.querySelector(target.selector);
-        if (el) return rectOf(el);
+        /* A framed selector is only meaningful inside that frame's document, and
+           running it against the top document could match something unrelated. */
+        const frame = frameFor(target);
+        const scope = frame ? frame.doc : document;
+        const el = scope.querySelector(target.selector);
+        if (el) return rectOf(el, frame);
       } catch {
-        /* stale selector */
+        /* stale selector, or the frame went away */
       }
     }
     return target.rect;
+  }
+
+  /**
+   * Re-find the frame a target was captured in. Matched by selector first, then
+   * by URL, because a re-rendered app can hand the same frame a new position.
+   *
+   * @param {any} target
+   * @returns {{el: HTMLIFrameElement, doc: Document} | null}
+   */
+  function frameFor(target) {
+    if (!target?.frame) return null;
+    const frames = picker.sameOriginFrames();
+    for (const frame of frames) {
+      if (target.frame.selector) {
+        try {
+          if (frame.el === document.querySelector(target.frame.selector)) return frame;
+        } catch {
+          /* the selector no longer parses against this document */
+        }
+      }
+    }
+    for (const frame of frames) {
+      try {
+        if (target.frame.url && frame.doc.location?.href === target.frame.url) return frame;
+      } catch {
+        /* unreadable */
+      }
+    }
+    return null;
   }
 
   function renderPins() {

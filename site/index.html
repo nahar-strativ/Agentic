@@ -269,6 +269,32 @@
         .sheet::after { display: none; }
       }
 
+      .rail {
+        position: absolute;
+        top: 0;
+        width: 26px;
+        pointer-events: none;
+        font: 400 8px/1 var(--mono);
+        letter-spacing: 0.02em;
+        color: var(--stroke-strong);
+        user-select: none;
+      }
+
+      .rail-left { left: 8px; }
+      .rail-right { right: 8px; text-align: right; }
+
+      .rail span {
+        position: absolute;
+        display: block;
+        width: 100%;
+        /* Half the label's own height, so the number sits centred on its tick. */
+        transform: translateY(-4px);
+      }
+
+      @media (max-width: 720px) {
+        .rail { display: none; }
+      }
+
       /* ---------- masthead ---------- */
 
       .masthead {
@@ -346,11 +372,30 @@
         color: var(--primary);
       }
 
-      .masthead nav a.is-primary {
-        background: var(--fg);
-        color: var(--surface);
+      /* The reference's header action is a bordered pill, not a filled button:
+         the page's one filled control is the install command in the hero. */
+      .masthead nav a.is-cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: 6px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+        color: var(--fg);
       }
-      .masthead nav a.is-primary:hover { opacity: 0.88; }
+
+      .masthead nav a.is-cta:hover {
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .masthead nav a.is-cta .chev {
+        color: var(--fg-soft);
+        font-size: 1.05em;
+        line-height: 1;
+      }
 
       .masthead .tag {
         margin: 0;
@@ -372,11 +417,11 @@
         .masthead nav a { white-space: nowrap; }
         /* The action must not scroll out of reach with the section links, so it
            sticks to the right edge of the strip and the links pass under it. */
-        .masthead nav a.is-primary {
+        .masthead nav a.is-cta {
           position: sticky;
           right: 0;
           margin-left: 4px;
-          box-shadow: -8px 0 8px 0 var(--surface);
+          box-shadow: var(--shadow-sm), -10px 0 10px 2px var(--surface);
         }
       }
 
@@ -988,31 +1033,152 @@
 
       /* ---------- footer ---------- */
 
+      /* ---------- footer ---------- */
+
       footer {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        flex-wrap: wrap;
-        margin-top: clamp(3rem, 7vw, 5rem);
-        padding: 20px 22px;
+        position: relative;
+        margin-top: clamp(3.5rem, 8vw, 6rem);
+        padding: clamp(1.75rem, 4vw, 2.5rem) clamp(1.5rem, 4vw, 2.5rem) 0;
         background: var(--surface);
         border-radius: var(--r-xl);
         box-shadow: var(--shadow-sm);
+        overflow: hidden;
+      }
+
+      .foot-cols {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+        gap: 32px;
+      }
+
+      @media (max-width: 860px) {
+        .foot-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+      }
+
+      @media (max-width: 520px) {
+        .foot-cols { grid-template-columns: minmax(0, 1fr); }
+      }
+
+      .foot-brand p {
+        margin: 12px 0 0;
+        max-width: 34ch;
         font-size: 0.8125rem;
         line-height: 1.6;
         letter-spacing: -0.006em;
         color: var(--fg-soft);
       }
 
-      footer .spacer { flex: 1; }
+      /* Each link column hangs off a hairline that ends in a small square, the way
+         a measured drawing terminates a dimension line. */
+      .foot-col {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+        padding-left: 20px;
+      }
 
-      footer a { text-decoration: none; font-weight: 500; }
-      footer a:hover { text-decoration: underline; }
+      .foot-col::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 4px;
+        bottom: 6px;
+        width: 1px;
+        background: var(--stroke);
+      }
+
+      .foot-col::after {
+        content: "";
+        position: absolute;
+        left: -2px;
+        bottom: 2px;
+        width: 5px;
+        height: 5px;
+        background: var(--surface);
+        box-shadow: inset 0 0 0 1px var(--stroke-strong);
+      }
+
+      .foot-col h3 {
+        margin: 0 0 2px;
+        font: 500 0.6875rem/1.45 var(--sans);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--fg-soft);
+      }
+
+      .foot-col a {
+        font-size: 0.8125rem;
+        line-height: 1.5;
+        letter-spacing: -0.006em;
+        color: var(--fg-dim);
+        text-decoration: none;
+        width: fit-content;
+      }
+
+      .foot-col a:hover { color: var(--fg); }
+
+      /* The horizontal rule gets the same square end-caps. */
+      .foot-rule {
+        position: relative;
+        height: 1px;
+        margin: clamp(1.75rem, 4vw, 2.5rem) 0 0;
+        background: var(--stroke);
+      }
+
+      .foot-rule::before,
+      .foot-rule::after {
+        content: "";
+        position: absolute;
+        top: -2px;
+        width: 5px;
+        height: 5px;
+        background: var(--surface);
+        box-shadow: inset 0 0 0 1px var(--stroke-strong);
+      }
+
+      .foot-rule::before { left: -2px; }
+      .foot-rule::after { right: -2px; }
+
+      .foot-legal {
+        margin: 18px 0 0;
+        max-width: none;
+        text-align: center;
+        font-size: 0.8125rem;
+        line-height: 1.6;
+        letter-spacing: -0.006em;
+        color: var(--fg-soft);
+      }
+
+      .foot-mark {
+        margin: clamp(0.5rem, 2vw, 1.25rem) -2% -4%;
+        /* Cropped by the footer's overflow, so it reads as a mark the page is
+           sitting on rather than a logo placed inside a box. */
+      }
+
+      .foot-mark svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .foot-mark text {
+        font: 500 190px/1 var(--sans);
+        letter-spacing: -0.05em;
+        fill: none;
+        stroke: var(--stroke);
+        stroke-width: 1;
+      }
     </style>
   </head>
 
   <body>
     <div class="sheet">
+      <!-- Filled by the script at the bottom: tick labels down both edges, so the
+           frame reads as a measured drawing rather than two stray lines. Empty
+           without JavaScript, where the CSS hairlines still show. -->
+      <div class="rail rail-left" aria-hidden="true"></div>
+      <div class="rail rail-right" aria-hidden="true"></div>
       <a class="skip" href="#why">Skip to content</a>
       <header class="masthead">
         <span class="wordmark"><span class="dot"></span>earmark</span>
@@ -1024,7 +1190,9 @@
           <a href="#mcp">MCP</a>
           <a href="#broker">Broker</a>
           <a href="./docs.html">Docs</a>
-          <a class="is-primary" href="https://github.com/nahar-strativ/Agentic">GitHub</a>
+          <a class="is-cta" href="https://github.com/nahar-strativ/Agentic"
+            >GitHub<span class="chev">&#8250;</span></a
+          >
         </nav>
       </header>
 
@@ -1726,30 +1894,106 @@ curl http://127.0.0.1:7331/markdown</pre>
               selectors, geometry, styles.
             </li>
             <li>
-              <strong>Iframes are invisible.</strong> The overlay only sees its
-              own document.
+              <strong>Cross-origin iframes stay invisible.</strong> Same-origin
+              frames are pickable: you get the element, the frame that holds it,
+              and a selector that resolves inside that frame. A cross-origin
+              frame is a browser security boundary, not a gap to work around.
             </li>
             <li>
-              <strong>Canvas and WebGL have nothing to annotate.</strong> Region
-              mode will honestly report an empty area.
+              <strong>Canvas and WebGL have no DOM to annotate.</strong> What you
+              get instead is the coordinate space the drawing code works in: the
+              clicked pixel in the canvas buffer, the buffer size against the CSS
+              box, the ratio between them, the context type and the detected
+              renderer.
             </li>
             <li>
-              <strong>Svelte component names are unavailable.</strong> There is
-              no runtime hook for them, so a Svelte annotation carries the file
-              and line instead of a component chain.
+              <strong>Source resolution stops at a frame boundary.</strong>
+              Build-time stamps inside a frame are read normally, but the served
+              HTML and CSS of a framed document are not walked yet.
             </li>
           </ul>
         </div>
       </section>
 
       <footer>
-        <span class="wordmark"><span class="dot"></span>earmark</span>
-        <span class="spacer"></span>
-        <span>MIT · clean-room implementation</span>
-        <a href="./docs.html">Documentation</a>
-        <a href="https://github.com/nahar-strativ/Agentic">github.com/nahar-strativ/Agentic</a>
+        <div class="foot-cols">
+          <div class="foot-brand">
+            <span class="wordmark"><span class="dot"></span>earmark</span>
+            <p>
+              Visual feedback for coding agents. Click an element, say what should
+              change, and the agent gets the selector, the file and the line.
+            </p>
+          </div>
+
+          <div class="foot-col">
+            <h3>Product</h3>
+            <a href="#start">Install</a>
+            <a href="#toolbar">Toolbar</a>
+            <a href="#loop">The loop</a>
+            <a href="#source">Source resolution</a>
+          </div>
+
+          <div class="foot-col">
+            <h3>Reference</h3>
+            <a href="./docs.html">Documentation</a>
+            <a href="./docs.html#tools">MCP tools</a>
+            <a href="./docs.html#api">Broker API</a>
+            <a href="./docs.html#trouble">Troubleshooting</a>
+          </div>
+
+          <div class="foot-col">
+            <h3>Project</h3>
+            <a href="https://github.com/nahar-strativ/Agentic">Source</a>
+            <a href="./docs.html#limits">Limits</a>
+            <a href="./docs.html#security">Security</a>
+            <a href="#why">Why it exists</a>
+          </div>
+        </div>
+
+        <div class="foot-rule"></div>
+
+        <p class="foot-legal">MIT licensed, and a clean-room implementation.</p>
+
+        <!-- The wordmark as construction lines: outlined, unfilled, sitting under
+             everything like a drawing that was never inked. Decorative, so it is
+             hidden from assistive tech. -->
+        <div class="foot-mark" aria-hidden="true">
+          <svg viewBox="0 0 900 160" preserveAspectRatio="xMidYMax meet">
+            <text x="450" y="150" text-anchor="middle">earmark</text>
+          </svg>
+        </div>
       </footer>
     </div>
+
+    <script>
+      /* Tick labels for the ruler frame. Decorative, and deliberately harmless:
+         if this throws or never runs, the page is exactly as the markup rendered. */
+      (function () {
+        var rails = document.querySelectorAll('.rail');
+        var sheet = document.querySelector('.sheet');
+        if (!rails.length || !sheet) return;
+
+        var STEP = 100;
+        var last = -1;
+
+        function draw() {
+          var height = sheet.offsetHeight;
+          if (height === last) return;
+          last = height;
+
+          var marks = '';
+          for (var y = 0; y <= height - 40; y += STEP) {
+            marks += '<span style="top:' + y + 'px">' + y + '</span>';
+          }
+          rails.forEach(function (rail) {
+            rail.innerHTML = marks;
+          });
+        }
+
+        draw();
+        addEventListener('resize', draw);
+      })();
+    </script>
 
     <script>
       /* Scroll-spy: marks the nav link for whichever section you are reading.

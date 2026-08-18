@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>child frame</title>
+    <style>
+      body { margin: 0; padding: 16px; font: 14px/1.5 system-ui, sans-serif; background: #fff; color: #171717; }
+      .card { padding: 14px; border: 1px solid #ebebeb; border-radius: 12px; }
+      button { padding: 7px 13px; border: 1px solid #ebebeb; border-radius: 10px; background: #fff; font: inherit; }
+      button.primary { background: #335cff; border-color: #335cff; color: #fff; }
+      .spin { width: 18px; height: 18px; margin-top: 10px; border: 2px solid #ebebeb; border-top-color: #fa7319; border-radius: 50%; animation: spin 1s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <strong>Inside the iframe</strong>
+      <p id="frame-copy">This element lives in a child document.</p>
+      <button class="primary" data-testid="frame-save">Save</button>
+      <button>Cancel</button>
+      <div class="spin"></div>
+    </div>
+  </body>
+</html>

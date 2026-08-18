@@ -12,6 +12,13 @@
 
 export const SOURCE_ATTR = 'data-earmark-src';
 
+/**
+ * The component an element was written in, stamped at build time. Svelte has no
+ * runtime equivalent of a React fiber, so for Svelte this attribute is the only
+ * way a component chain can exist at all.
+ */
+export const COMPONENT_ATTR = 'data-earmark-component';
+
 /** Components that are framework plumbing rather than app code. */
 const NOISE_COMPONENTS = new Set([
   'Fragment',
@@ -188,6 +195,27 @@ export function sourceStamp(el, maxHops = 5) {
 }
 
 /**
+ * Component chain rebuilt from build-time stamps: walk to the root collecting
+ * distinct component names, outermost first. Consecutive duplicates collapse,
+ * because every element inside a component carries that component's name and
+ * `Card > Card > Card` says nothing.
+ *
+ * @param {Element} el
+ * @returns {string[]}
+ */
+export function stampedComponents(el) {
+  /** @type {string[]} */
+  const chain = [];
+  let node = el;
+  while (node && node.nodeType === 1) {
+    const name = node.getAttribute?.(COMPONENT_ATTR);
+    if (name && name !== chain[0]) chain.unshift(name);
+    node = node.parentElement;
+  }
+  return chain;
+}
+
+/**
  * Detect which framework rendered the page.
  * @returns {'react' | 'vue' | 'angular' | 'svelte' | 'unknown'}
  */
@@ -222,16 +250,18 @@ export function inspectElement(el) {
     if (result && (result.components.length || result.source)) {
       return {
         framework: probe === inspectReact ? 'react' : probe === inspectVue ? 'vue' : 'angular',
-        components: result.components,
+        components: result.components.length ? result.components : stampedComponents(el),
         source: stamp?.source || result.source || null,
         sourceExact: stamp ? stamp.exact : false,
       };
     }
   }
 
+  /* No probe matched. Svelte and any other compile-to-DOM framework land here,
+     and a build-time stamp is the only component information that can exist. */
   return {
     framework: detectFramework(),
-    components: [],
+    components: stampedComponents(el),
     source: stamp?.source || null,
     sourceExact: stamp ? stamp.exact : false,
   };

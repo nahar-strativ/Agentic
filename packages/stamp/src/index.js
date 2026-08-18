@@ -10,11 +10,11 @@
  *   if (result) ({ code, map } = result)
  */
 
-import { stampJsx, SOURCE_ATTR, SKIP_TAGS } from './jsx.js';
+import { stampJsx, SOURCE_ATTR, COMPONENT_ATTR, SKIP_TAGS } from './jsx.js';
 import { stampSvelte } from './svelte.js';
 import { relativePath } from './path.js';
 
-export { stampJsx, stampSvelte, SOURCE_ATTR, SKIP_TAGS, relativePath };
+export { stampJsx, stampSvelte, SOURCE_ATTR, COMPONENT_ATTR, SKIP_TAGS, relativePath };
 export { earmarkPreprocess } from './svelte-preprocess.js';
 
 /** Files worth handing to `stamp()`. */

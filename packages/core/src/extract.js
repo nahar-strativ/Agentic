@@ -166,15 +166,21 @@ function truncate(value, max) {
  * @param {Element} el
  * @returns {{x: number, y: number, width: number, height: number, pageX: number, pageY: number}}
  */
-export function rectOf(el) {
+export function rectOf(el, frame = null) {
   const r = el.getBoundingClientRect();
+  /* An element inside an iframe reports coordinates in the frame's viewport. The
+     overlay draws in the top window, so the frame's own offset is added here
+     rather than in every caller. */
+  const offset = frame ? frame.el.getBoundingClientRect() : null;
+  const left = r.left + (offset ? offset.left : 0);
+  const top = r.top + (offset ? offset.top : 0);
   return {
-    x: round(r.left),
-    y: round(r.top),
+    x: round(left),
+    y: round(top),
     width: round(r.width),
     height: round(r.height),
-    pageX: round(r.left + window.scrollX),
-    pageY: round(r.top + window.scrollY),
+    pageX: round(left + window.scrollX),
+    pageY: round(top + window.scrollY),
   };
 }
 
@@ -225,8 +231,109 @@ export function labelFor(el) {
  * @param {Element} el
  * @returns {object}
  */
-export function extractElement(el) {
+/**
+ * Renderer libraries worth naming, detected from globals the page has already
+ * loaded. Knowing it is three.js rather than Chart.js changes which file an agent
+ * opens, and it is the difference between "somewhere in the canvas" and a lead.
+ */
+const CANVAS_LIBRARIES = [
+  ['three', () => 'THREE' in window],
+  ['chart.js', () => 'Chart' in window],
+  ['pixi', () => 'PIXI' in window],
+  ['d3', () => 'd3' in window],
+  ['fabric', () => 'fabric' in window],
+  ['konva', () => 'Konva' in window],
+  ['babylon', () => 'BABYLON' in window],
+  ['p5', () => 'p5' in window],
+  ['matter', () => 'Matter' in window],
+  ['phaser', () => 'Phaser' in window],
+];
+
+/** @returns {string | null} */
+function canvasLibrary() {
+  for (const [name, present] of CANVAS_LIBRARIES) {
+    try {
+      if (present()) return name;
+    } catch {
+      /* a getter on window threw; it is not the library we are looking for */
+    }
+  }
+  return null;
+}
+
+/**
+ * Which context a canvas is already using. Asking for a context that has not been
+ * created would create one, so this only ever *probes* by asking for the same
+ * kind back: `getContext` returns null when a different kind is already bound.
+ *
+ * @param {HTMLCanvasElement} el
+ * @returns {string | null}
+ */
+function canvasContextKind(el) {
+  for (const kind of ['2d', 'webgl2', 'webgl', 'bitmaprenderer']) {
+    try {
+      if (el.getContext(kind)) return kind;
+    } catch {
+      /* some contexts throw rather than returning null */
+    }
+  }
+  return null;
+}
+
+/**
+ * What a canvas can honestly tell an agent.
+ *
+ * There is no DOM inside a canvas, so there is nothing to select and no source
+ * line to find. What *is* actionable is the coordinate space the drawing code
+ * works in: a click at viewport (x, y) maps to a pixel in the canvas's own
+ * buffer, and that buffer is often a different size from the element's CSS box.
+ * Reporting both, plus the ratio between them, is what lets an agent reason about
+ * hit-testing code it cannot see.
+ *
+ * @param {HTMLCanvasElement} el
+ * @param {{x: number, y: number} | null} [point] viewport coordinates
+ * @param {{x: number, y: number, width: number, height: number} | null} [region] viewport rect
+ */
+function canvasInfo(el, point, region) {
+  const box = el.getBoundingClientRect();
+  const scaleX = box.width ? el.width / box.width : 1;
+  const scaleY = box.height ? el.height / box.height : 1;
+
+  /** @param {number} vx @param {number} vy */
+  const toBuffer = (vx, vy) => ({
+    x: Math.round((vx - box.left) * scaleX),
+    y: Math.round((vy - box.top) * scaleY),
+  });
+
+  const info = {
+    /** The drawing buffer, which is what canvas code uses. */
+    buffer: { width: el.width, height: el.height },
+    /** The CSS box, which is what the user pointed at. */
+    css: { width: round(box.width), height: round(box.height) },
+    /** Buffer pixels per CSS pixel. Not always devicePixelRatio. */
+    scale: { x: round(scaleX * 100) / 100, y: round(scaleY * 100) / 100 },
+    devicePixelRatio: window.devicePixelRatio || 1,
+    context: canvasContextKind(el),
+    library: canvasLibrary(),
+  };
+
+  if (point) info.point = toBuffer(point.x, point.y);
+  if (region) {
+    const topLeft = toBuffer(region.x, region.y);
+    info.region = {
+      x: topLeft.x,
+      y: topLeft.y,
+      width: Math.round(region.width * scaleX),
+      height: Math.round(region.height * scaleY),
+    };
+  }
+  return info;
+}
+
+export function extractElement(el, options = {}) {
   const info = inspectElement(el);
+  const isCanvas = el.tagName === 'CANVAS';
+  const frame = options.frame || null;
   return {
     kind: 'element',
     label: labelFor(el),
@@ -237,13 +344,40 @@ export function extractElement(el) {
     text: truncate(el.textContent || '', 200) || null,
     attributes: attributes(el),
     classes: Array.from(el.classList || []),
-    rect: rectOf(el),
+    rect: rectOf(el, frame),
     styles: computedStyles(el),
     framework: info.framework,
     components: info.components,
     source: info.source,
     sourceExact: info.sourceExact,
     ancestors: ancestors(el),
+    ...(isCanvas
+      ? { canvas: canvasInfo(/** @type {HTMLCanvasElement} */ (el), options.point || null, null) }
+      : {}),
+    /* A selector is only unique within its document, so an agent that is handed
+       one for a framed element needs to be told which document to run it in. */
+    ...(frame ? { frame: frameInfo(frame) } : {}),
+  };
+}
+
+/**
+ * Where a framed element lives: how to reach the frame from the top document, and
+ * what the frame is showing.
+ *
+ * @param {{el: HTMLIFrameElement, doc: Document}} frame
+ */
+function frameInfo(frame) {
+  let url = null;
+  try {
+    url = frame.doc.location?.href || frame.el.getAttribute('src');
+  } catch {
+    url = frame.el.getAttribute('src');
+  }
+  return {
+    selector: uniqueSelector(frame.el),
+    name: frame.el.getAttribute('name') || frame.el.getAttribute('id') || null,
+    url,
+    title: frame.el.getAttribute('title') || null,
   };
 }
 
@@ -331,7 +465,37 @@ export function extractRegion(region) {
       rect: rectOf(el),
     })),
     emptyRegion: outermost.length === 0,
+    /* A region over a canvas, a WebGL scene or plain empty space contains no
+       elements. Reporting only "empty" wastes the one thing the user did tell us:
+       where they dragged. So name the element the region was drawn *on top of*,
+       and if that is a canvas, map the region into its drawing buffer. */
+    ...(outermost.length === 0 ? containerFor(region) : {}),
   };
+}
+
+/**
+ * The element under the centre of an empty region, described as a container
+ * rather than a hit, plus canvas coordinates when it is a canvas.
+ *
+ * @param {{x: number, y: number, width: number, height: number}} region
+ */
+function containerFor(region) {
+  const centre = { x: region.x + region.width / 2, y: region.y + region.height / 2 };
+  const el = document.elementFromPoint(centre.x, centre.y);
+  if (!el || el.closest?.('#earmark-root')) return {};
+
+  const container = {
+    label: labelFor(el),
+    tag: el.tagName.toLowerCase(),
+    selector: uniqueSelector(el),
+    source: inspectElement(el).source,
+    rect: rectOf(el),
+  };
+
+  if (el.tagName === 'CANVAS') {
+    container.canvas = canvasInfo(/** @type {HTMLCanvasElement} */ (el), centre, region);
+  }
+  return { container };
 }
 
 /**

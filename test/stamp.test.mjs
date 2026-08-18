@@ -31,7 +31,7 @@ test('dispatches on extension and reports a root-relative path', () => {
   assert.match(jsx.code, /data-earmark-src="src\/App\.tsx:1:24"/);
 
   const markup = stamp('<div>x</div>', { filename: '/repo/src/Card.svelte', root: '/repo' });
-  assert.match(markup.code, /<div data-earmark-src="src\/Card\.svelte:1:1">/);
+  assert.match(markup.code, /<div data-earmark-src="src\/Card\.svelte:1:1"/);
 });
 
 test('leaves alone what it does not handle', () => {
@@ -58,8 +58,8 @@ test('a file outside the root keeps its absolute path rather than a ../.. chain'
 
 test('stamps plain elements with line and column', () => {
   const result = svelte(['<main>', '  <button class="go">Go</button>', '</main>'].join('\n'));
-  assert.match(result.code, /<main data-earmark-src="src\/Card\.svelte:1:1">/);
-  assert.match(result.code, /<button data-earmark-src="src\/Card\.svelte:2:3" class="go">/);
+  assert.match(result.code, /<main data-earmark-src="src\/Card\.svelte:1:1"/);
+  assert.match(result.code, /<button data-earmark-src="src\/Card\.svelte:2:3"[^>]* class="go">/);
 });
 
 test('leaves components and svelte: elements alone', () => {
@@ -72,7 +72,7 @@ test('leaves components and svelte: elements alone', () => {
 test('a component wrapping real elements still stamps the elements', () => {
   const result = svelte('<Card><p>hi</p></Card>');
   assert.doesNotMatch(result.code, /<Card data-earmark-src/);
-  assert.match(result.code, /<p data-earmark-src="src\/Card\.svelte:1:7">/);
+  assert.match(result.code, /<p data-earmark-src="src\/Card\.svelte:1:7"/);
 });
 
 test('script contents are never stamped — generics are not markup', () => {
@@ -85,7 +85,7 @@ test('script contents are never stamped — generics are not markup', () => {
     '<p>{m.size}</p>',
   ].join('\n');
   const result = svelte(code);
-  assert.match(result.code, /<p data-earmark-src="src\/Card\.svelte:6:1">/);
+  assert.match(result.code, /<p data-earmark-src="src\/Card\.svelte:6:1"/);
   assert.equal([...result.code.matchAll(/data-earmark-src/g)].length, 1);
   assert.match(result.code, /new Map<string, number>\(\)/);
 });
@@ -106,23 +106,23 @@ test('expressions are not markup — {a<b} must survive untouched', () => {
 
 test('a > inside an attribute does not end the tag early', () => {
   const quoted = svelte('<a href="/x?a=>b" class="link">go</a>');
-  assert.match(quoted.code, /<a data-earmark-src="src\/Card\.svelte:1:1" href="\/x\?a=>b" class="link">/);
+  assert.match(quoted.code, /<a data-earmark-src="src\/Card\.svelte:1:1"[^>]* href="\/x\?a=>b" class="link">/);
 
   const braced = svelte("<div class={a > b ? 'x' : 'y'}>hi</div>");
-  assert.match(braced.code, /<div data-earmark-src="src\/Card\.svelte:1:1" class=\{a > b \? 'x' : 'y'\}>/);
+  assert.match(braced.code, /<div data-earmark-src="src\/Card\.svelte:1:1"[^>]* class=\{a > b \? 'x' : 'y'\}>/);
   assert.equal([...braced.code.matchAll(/data-earmark-src/g)].length, 1);
 });
 
 test('block markup is stamped, block tags are not', () => {
   const code = ['{#if open}', '  <dialog>hi</dialog>', '{/if}'].join('\n');
   const result = svelte(code);
-  assert.match(result.code, /<dialog data-earmark-src="src\/Card\.svelte:2:3">/);
+  assert.match(result.code, /<dialog data-earmark-src="src\/Card\.svelte:2:3"/);
   assert.equal([...result.code.matchAll(/data-earmark-src/g)].length, 1);
 });
 
 test('comments are skipped, including ones containing markup', () => {
   const result = svelte('<!-- <div>ignored</div> -->\n<span>real</span>');
-  assert.match(result.code, /<span data-earmark-src="src\/Card\.svelte:2:1">/);
+  assert.match(result.code, /<span data-earmark-src="src\/Card\.svelte:2:1"/);
   assert.equal([...result.code.matchAll(/data-earmark-src/g)].length, 1);
 });
 
@@ -172,4 +172,28 @@ test('the svelte preprocessor stamps markup and respects its gates', () => {
 test('the preprocessor is off in production builds', () => {
   const pre = earmarkPreprocess({ root: '/repo', dev: false });
   assert.equal(pre.markup({ content: '<div>x</div>', filename: '/repo/src/Card.svelte' }), undefined);
+});
+
+// -------------------------------------------------- component chain stamp --
+
+test('stamps the owning component name, which is the only way Svelte can have one', () => {
+  const result = stampSvelte('<main><button>Go</button></main>', { path: 'src/lib/Card.svelte' });
+  assert.equal([...result.code.matchAll(/data-earmark-component="Card"/g)].length, 2);
+});
+
+test('the component name comes from the filename, not the path', () => {
+  const result = stampSvelte('<p>x</p>', { path: 'src/routes/settings/BillingPanel.svelte' });
+  assert.match(result.code, /data-earmark-component="BillingPanel"/);
+});
+
+test('component stamping can be turned off without losing the source stamp', () => {
+  const result = stampSvelte('<p>x</p>', { path: 'src/Card.svelte', component: false });
+  assert.match(result.code, /data-earmark-src=/);
+  assert.doesNotMatch(result.code, /data-earmark-component/);
+});
+
+test('a filename that cannot be a component name is left without one', () => {
+  const result = stampSvelte('<p>x</p>', { path: 'src/2-weird name.svelte' });
+  assert.match(result.code, /data-earmark-src=/);
+  assert.doesNotMatch(result.code, /data-earmark-component/);
 });

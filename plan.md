@@ -660,6 +660,105 @@ test's fault. `.btn-primary` matched the panel's Copy button before the composer
 Add button, and the priority control is a `<select>`, so clicking it changes
 nothing.
 
+### 4.29 Closing the limitations (added 2026-08-18)
+
+Asked whether the three standing limitations could be dealt with. They had three
+different answers, which is the useful part.
+
+**Svelte component names: closed.** The stamper already knew the filename, and
+`Card.svelte` is the `Card` component. It now writes
+`data-earmark-component="Card"` beside the source position, and
+`stampedComponents()` rebuilds the chain at runtime by walking ancestors and
+collapsing consecutive duplicates. A Svelte annotation carries
+`App > Dashboard > Card` exactly like a React one. Every element inside a
+component carries that component's name, which is more attributes than strictly
+needed; the alternative was tracking nesting depth in the scanner, and a wrong
+depth would produce a wrong chain.
+
+**Canvas and WebGL: narrowed, not closed.** There is genuinely nothing inside a
+canvas to select, and no honest way to invent one. But "empty area" threw away the
+one thing the user did communicate: where they pointed. A canvas target now
+reports the clicked pixel **in the drawing buffer**, the buffer size against the
+CSS box, the ratio between them, the context kind and the detected renderer
+library. The ratio is the point: a canvas whose buffer is 640x360 inside a 320x180
+box maps every CSS pixel to two buffer pixels, and that factor of two is where
+hit-testing bugs live. A region dragged over a canvas reports the region in buffer
+pixels and names what it was drawn on.
+
+The context probe only ever asks for a context that already exists, because
+`getContext` would otherwise *create* one and change the page being inspected.
+
+**Iframes: closed for same-origin, impossible for cross-origin.** Picking now
+descends into any frame the overlay can read, and cross-origin frames are skipped
+rather than worked around: `contentDocument` throws, and every "workaround" for
+that is either a lie or a security hole.
+
+Four things this needed, each of which would have been a bug if missed:
+
+- **Events come from the child document**, so hit-testing has to run in the
+  document the event came from, not the top one.
+- **Coordinates are frame-local.** `rectOf` takes the frame and adds its offset,
+  so pins land in the top window where the overlay draws.
+- **A selector is only unique within one document.** The target carries the frame
+  and the markdown says so explicitly, because an agent running a framed selector
+  against the top page would silently match the wrong element.
+- **Source resolution must not cross the boundary.** `enrichTargets` reads *this*
+  document and its stylesheets, so it now skips framed targets entirely. Running a
+  framed selector there could have matched something unrelated in the parent and
+  reported a confidently wrong line, which is the exact failure mode §4.13 was
+  built to avoid.
+
+Freeze reaches into frames too, styles and Web Animations and media, and cleans up
+after itself on unfreeze. `examples/frames/` is a demo page with a same-origin
+frame and a deliberately mismatched canvas buffer.
+
+Verified live in the browser for all three, plus 8 unit tests in
+`test/limits.test.mjs`. Four more harness artefacts along the way, none of them
+product bugs: coordinates below the fold make `elementFromPoint` return null, the
+overlay's public `setMode` **toggles** rather than sets (so calling it twice turns
+picking off), and reading `annotations` after calling `clear()` naturally shows
+nothing.
+
+### 4.30 npm packaging (added 2026-08-18)
+
+All six names were still free: `earmark`, `earmark-server`, `earmark-mcp`,
+`earmark-stamp`, `earmark-loader`, `vite-plugin-earmark`.
+
+Each package now carries `repository` (with `directory`, so npm points at the
+right folder of the monorepo), `homepage`, `bugs`, `engines`, `author`,
+`publishConfig.access`, a `LICENSE` file and its own README, since npm renders the
+package README and the root one is not included. `files` stays an allowlist:
+`src`, `types`, `bin`, `LICENSE`, `README.md` and nothing else. `npm pack
+--dry-run` confirms the contents of all six.
+
+**MIT copyright holder: Kamrun Nahar**, chosen by the user rather than guessed. A
+licence names a legal rights holder, and a git handle is not one.
+
+`npm run release` gates the publish on the suite and the live verification, then
+runs `npm publish --workspaces`, which resolves dependency order itself. It is
+deliberately a command the user runs: publishing needs their credentials and
+cannot be undone.
+
+### 4.31 Header and footer, from the reference (added 2026-08-18)
+
+The user supplied two screenshots of the reference's header and footer. What was
+actually in them, beyond what had already been copied:
+
+- The header action is a **bordered white pill with a chevron**, not a filled
+  button. Filled is now reserved for the one command in the hero.
+- The footer is a **column layout on hairline rails**, each rail terminating in a
+  small open square, like a dimension line on a drawing. The horizontal rule gets
+  the same end caps.
+- Underneath everything sits the wordmark as **outlined construction lines**,
+  oversized and cropped by the footer's edge.
+- The ruler frame carries **tick numbers**. Those are generated by script, since
+  the count depends on page height, and the CSS hairlines remain as the no-script
+  fallback.
+
+A first attempt drew geometric circles and rectangles around the watermark to
+imitate the reference's letter construction. It read as arbitrary brackets rather
+than construction, so it was removed: the outlined wordmark alone carries it.
+
 ### 4.20 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
@@ -723,7 +822,7 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
 - [x] **Svelte** — markup stamping via the Vite plugin, or a preprocessor (§4.21)
 - [x] TypeScript declarations for all six packages, type-checked in CI (§4.22)
 - [x] AlignUI visual system across overlay and landing page (§4.23)
-- [x] 138 tests across thirteen suites, all passing
+- [x] 150 tests across fourteen suites, all passing
 - [x] `npm run verify`: 20 assembled features checked live (§4.28)
 - [x] Documentation page and scroll-spy on the site (§4.27)
 - [x] Live browser verification of the whole loop, both directions:
@@ -734,19 +833,19 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
 - [ ] **Screenshots.** No element cropping or page capture. Worth adding for
       vision-capable agents; `html2canvas` is heavy, `getDisplayMedia` needs a
       user gesture. Undecided.
-- [ ] **Svelte component names.** Files and lines are stamped now (§4.21), but
-      there is still no runtime hook for the *component chain*, so a Svelte
-      annotation carries `Card.svelte:12:3` and no `App › Dashboard › Card`.
+- [x] **Svelte component names** are stamped and the chain is rebuilt (§4.29).
 - [ ] **Turbopack is configured but unverified.** The webpack path was run
       through a real webpack build; the Turbopack rules are written to its
       documented loader subset and have not been executed.
-- [ ] **iframes.** The overlay only sees its own document.
-- [ ] **Canvas / WebGL apps.** Nothing to annotate — region mode reports an
-      empty area.
+- [x] **Same-origin iframes** are pickable (§4.29). Cross-origin frames are a
+      browser security boundary and stay out of reach.
+- [ ] **Source resolution inside a frame.** Build stamps are read, but the served
+      HTML and CSS of a framed document are not walked yet.
+- [x] **Canvas / WebGL** report their coordinate space rather than an empty area
+      (§4.29). There is still no DOM inside a canvas, and there cannot be.
 - [ ] **Mobile / touch.** Desktop only, same limitation the reference product has.
-- [ ] **Publishing.** Nothing is on npm; everything runs from source. The two
-      new package names (`earmark-stamp`, `earmark-loader`) have **not** been
-      checked for availability — the original four were, in §5.
+- [ ] **Publishing.** Packaging is done and all six names are free (§4.30);
+      `npm run release` is one command away, and is the user's to run.
 - [ ] **Screenshot verification of the full landing page.** The browser pane's
       capture only produced a frame at scroll 0 on a 10k-pixel page, so sections
       were verified one at a time by hiding the others. A tooling limit, not a
@@ -859,6 +958,14 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   intact, and a real webpack build driven by `withEarmark`'s own rule emits both
   stamps into the bundle. Left open deliberately: screenshots, iframes, mobile,
   publishing, and the Svelte component chain.
+- **2026-08-18** — Worked the three standing limitations (§4.29): **Svelte
+  component chains closed**, **canvas** now reporting buffer coordinates instead
+  of "empty area", and **same-origin iframes pickable** with frame-scoped
+  selectors, frame-offset pins and freeze reaching inside. Cross-origin stays
+  impossible and is stated as such. Suite 138 → 150. Packaged all six workspaces
+  for npm with LICENSE, per-package READMEs and a gated `npm run release` (§4.30);
+  all six names verified free. Rebuilt the header action and the footer from the
+  user's reference screenshots, and gave the ruler frame its tick numbers (§4.31).
 - **2026-08-18** — Added a scroll-spy to the site nav and a full **documentation
   page** at `site/docs.html`, linked from the masthead, hero and footer (§4.27).
   Added `npm run verify`, which checks 20 assembled features against real servers,

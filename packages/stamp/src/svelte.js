@@ -13,20 +13,30 @@
  */
 
 import MagicString from 'magic-string';
-import { SOURCE_ATTR, SKIP_TAGS } from './jsx.js';
+import { SOURCE_ATTR, COMPONENT_ATTR, SKIP_TAGS } from './jsx.js';
 
 /** Tags that render no element of their own, so a stamp would go nowhere. */
 const SVELTE_SKIP = new Set([...SKIP_TAGS, 'slot']);
 
 /**
+ * Also stamps the owning component's name. Svelte has no runtime hook that can
+ * tell you which component an element came from, so the name has to be written
+ * down at build time; the runtime then rebuilds the chain
+ * (`App > Dashboard > Card`) by walking ancestors and collecting distinct names.
+ *
  * @param {string} code
  * @param {object} options
  * @param {string} options.path repo-relative, forward-slashed path to report
  * @param {string} [options.mapSource]
+ * @param {boolean} [options.component] stamp the component name (default true)
  * @returns {import('./jsx.js').StampResult | null}
  */
-export function stampSvelte(code, { path, mapSource }) {
+export function stampSvelte(code, { path, mapSource, component = true }) {
   if (!code.includes('<')) return null;
+
+  /* Card.svelte is the Card component. That is the whole convention, and it is
+     the same one the Svelte compiler itself uses for devtools names. */
+  const componentName = componentNameFrom(path);
 
   const magic = new MagicString(code);
   const lineStarts = indexLines(code);
@@ -88,7 +98,9 @@ export function stampSvelte(code, { path, mapSource }) {
     if (shouldStamp) {
       const nameEnd = i + 1 + name.length;
       const { line, column } = positionAt(lineStarts, i);
-      magic.appendLeft(nameEnd, ` ${SOURCE_ATTR}="${path}:${line}:${column}"`);
+      const own =
+        component && componentName ? ` ${COMPONENT_ATTR}="${componentName}"` : '';
+      magic.appendLeft(nameEnd, ` ${SOURCE_ATTR}="${path}:${line}:${column}"${own}`);
       stamped += 1;
     }
 
@@ -102,6 +114,20 @@ export function stampSvelte(code, { path, mapSource }) {
     map: magic.generateMap({ hires: true, source: mapSource ?? path }),
     stamped,
   };
+}
+
+/**
+ * `src/lib/Card.svelte` is the `Card` component. Returns null for a filename that
+ * cannot carry a name, rather than inventing one.
+ *
+ * @param {string} path
+ * @returns {string | null}
+ */
+function componentNameFrom(path) {
+  const base = String(path).split('/').pop() || '';
+  const name = base.replace(/\.svelte$/, '');
+  if (!name || !/^[A-Za-z_$][\w$.-]*$/.test(name)) return null;
+  return name;
 }
 
 /**
