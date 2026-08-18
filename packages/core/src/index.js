@@ -68,9 +68,16 @@ export function getEarmark() {
   return instance;
 }
 
-// Auto-mount when loaded via a plain <script data-earmark-auto> tag.
+// Auto-mount when loaded via a <script data-earmark-auto> tag.
+//
+// `document.currentScript` is null inside an ES module, and the documented
+// no-bundler installation is a module script, so relying on it alone meant the
+// overlay silently never mounted. The query is the fallback that makes the
+// documented path work; currentScript stays first because it is exact when a page
+// has more than one earmark tag.
 if (typeof document !== 'undefined') {
-  const script = document.currentScript;
+  const script =
+    document.currentScript || document.querySelector('script[data-earmark-auto]');
   if (script && script.hasAttribute('data-earmark-auto')) {
     createEarmark({
       endpoint: script.getAttribute('data-endpoint') ?? undefined,

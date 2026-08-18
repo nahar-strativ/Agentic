@@ -1287,9 +1287,10 @@
               <span class="tag">Universal</span>
               <h4>Any framework, or none</h4>
               <p>
-                Plain DOM and Shadow&nbsp;DOM, zero runtime dependencies. React,
-                Vue and Angular component paths are an enhancement layer, never
-                a requirement.
+                Plain DOM and Shadow&nbsp;DOM, zero runtime dependencies.
+                Component paths for React, Vue, Angular and Svelte are an
+                enhancement layer, never a requirement. Picking reaches into
+                same-origin iframes.
               </p>
             </div>
             <div class="cell">
@@ -1391,19 +1392,20 @@
                 <tr>
                   <td><strong>Region</strong></td>
                   <td>
-                    Drag a box. Reports every element substantially inside it,
-                    or flags the area as empty.
+                    Drag a box. Reports every element substantially inside it.
+                    Over a canvas, where there is nothing to select, it reports
+                    the region in the canvas's own buffer pixels.
                   </td>
-                  <td class="muted">Spacing, empty gaps, whole blocks</td>
+                  <td class="muted">Spacing, gaps, canvas</td>
                 </tr>
                 <tr>
                   <td><strong>Freeze</strong></td>
                   <td>
                     Pauses CSS animations, <code>element.animate()</code>
                     timelines, and any playing <code>video</code> or
-                    <code>audio</code>.
+                    <code>audio</code>, including inside same-origin iframes.
                   </td>
-                  <td class="muted">Annotating a moving frame</td>
+                  <td class="muted">Spinners, carousels, preview panes</td>
                 </tr>
                 <tr>
                   <td><strong>Panel</strong></td>
@@ -1556,8 +1558,9 @@
                 Vite, Next.js and Svelte all write
                 <code>data-earmark-src</code> onto every element you actually
                 wrote. Exact, and it works on React 19, which removed the
-                runtime <code>_debugSource</code> field that older tools rely
-                on.
+                runtime <code>_debugSource</code> field older tools rely on.
+                Svelte files carry their component name too, which is the only
+                way a Svelte annotation can have a component chain.
               </p>
             </div>
             <div class="cell">
@@ -1575,8 +1578,9 @@
               <h4>Selector, text, component path</h4>
               <p>
                 Even with no source at all, the agent gets a verified unique
-                selector, the exact visible text, the React or Vue component
-                chain, and the computed styles.
+                selector, the exact visible text, the component chain, the
+                computed styles, and the frame or canvas coordinate space the
+                element sits in.
               </p>
             </div>
           </div>
@@ -1603,6 +1607,20 @@
             build down. Both compilations are stamped, client and server: React
             hydration will not add an attribute the server HTML did not have.
           </p>
+
+          <h3>Iframes and canvas</h3>
+          <p>
+            A same-origin iframe is picked like anything else: the annotation
+            names the frame, its document, and a selector that resolves
+            <em>inside</em> it. A canvas has no DOM, so rather than pretend, it
+            reports the coordinate space its drawing code works in.
+          </p>
+          <pre><span class="c">- **Inside iframe:** `#preview` (preview)</span>
+  - frame document: /examples/frames/child.html
+
+<span class="c">- **Canvas:**</span>
+  - buffer <span class="v">640×360</span>, CSS <span class="v">320×180</span> (2× / 2× per CSS pixel, dpr 2)
+  - clicked at buffer pixel <span class="m">(354, 200)</span></pre>
 
           <h3>Plain HTML and CSS</h3>
           <p>

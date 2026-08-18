@@ -759,6 +759,46 @@ A first attempt drew geometric circles and rectangles around the watermark to
 imitate the reference's letter construction. It read as arbitrary brackets rather
 than construction, so it was removed: the outlined wordmark alone carries it.
 
+### 4.32 The documented install was broken (added 2026-08-18)
+
+Asked how to test earmark in a plain HTML project. Rather than write instructions
+from memory, a plain project was built: `index.html`, `styles.css`, `npm install
+-D file:../packages/core`, a static server, and the documented script tag.
+
+**The overlay never mounted.** `document.currentScript` is null inside an ES
+module, and the documented no-bundler installation is exactly a module script:
+
+```html
+<script type="module" src="/node_modules/earmark/src/index.js" data-earmark-auto></script>
+```
+
+So `data-earmark-auto` had never worked, on the one setup that has no other way to
+start the overlay. It survived because every example in the repo mounts explicitly
+with `createEarmark()`, and the tests exercise that path too. The recommended path
+for the least technical audience was the only one nobody ran.
+
+Fixed with a query fallback, keeping `currentScript` first because it stays exact
+when a page has more than one tag:
+
+```js
+const script =
+  document.currentScript || document.querySelector('script[data-earmark-auto]');
+```
+
+`test/automount.test.mjs` guards it at source level, which is honest about what it
+can check: auto-mount runs at import time against a live document, and there is no
+DOM in `node --test`. It also asserts the README's documented tag is the one the
+code looks for, since the failure was a mismatch between documentation and code
+rather than a logic error.
+
+Once mounted, the plain project produced exactly what §4.13 promised:
+`index.html:23:9` from the served HTML, and the two CSS rules that style the
+element, `button.buy` at `styles.css:10` and `.featured button.buy` at
+`styles.css:11`. Which of those two to edit is usually the whole question.
+
+**The lesson is about verification, not about `currentScript`:** a documented path
+that no example uses is an untested path, however plausible the code reads.
+
 ### 4.20 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
@@ -822,7 +862,7 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
 - [x] **Svelte** — markup stamping via the Vite plugin, or a preprocessor (§4.21)
 - [x] TypeScript declarations for all six packages, type-checked in CI (§4.22)
 - [x] AlignUI visual system across overlay and landing page (§4.23)
-- [x] 150 tests across fourteen suites, all passing
+- [x] 153 tests across fifteen suites, all passing
 - [x] `npm run verify`: 20 assembled features checked live (§4.28)
 - [x] Documentation page and scroll-spy on the site (§4.27)
 - [x] Live browser verification of the whole loop, both directions:
@@ -958,6 +998,12 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   intact, and a real webpack build driven by `withEarmark`'s own rule emits both
   stamps into the bundle. Left open deliberately: screenshots, iframes, mobile,
   publishing, and the Svelte component chain.
+- **2026-08-18** — Built a plain HTML project to answer "how do I test this",
+  and found that the **documented no-bundler install had never worked**:
+  `document.currentScript` is null in an ES module, so `data-earmark-auto` never
+  mounted (§4.32). Fixed, guarded, and the same project then produced source and
+  CSS-rule resolution exactly as designed. Landing page updated for the closed
+  limitations. Suite 150 → 153.
 - **2026-08-18** — Worked the three standing limitations (§4.29): **Svelte
   component chains closed**, **canvas** now reporting buffer coordinates instead
   of "empty area", and **same-origin iframes pickable** with frame-scoped
