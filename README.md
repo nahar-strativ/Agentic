@@ -28,7 +28,7 @@ Open http://127.0.0.1:5173/examples/vanilla/, click the arrow in the toolbar
 
 The landing page and the full documentation are served alongside it at
 http://127.0.0.1:5173/site/ and http://127.0.0.1:5173/site/docs.html. Both are
-live at https://nahar-strativ.github.io/Agentic/ and each is a single
+live at https://nahar-strativ.github.io/earmark/ and each is a single
 self-contained file with no dependencies.
 
 For live agent sync, run the broker in a second terminal:

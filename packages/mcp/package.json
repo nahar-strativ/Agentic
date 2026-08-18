@@ -4,14 +4,14 @@
   "description": "MCP server that lets AI coding agents read, answer and resolve earmark UI annotations.",
   "license": "MIT",
   "author": "nahar-strativ",
-  "homepage": "https://github.com/nahar-strativ/Agentic#readme",
+  "homepage": "https://github.com/nahar-strativ/earmark#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nahar-strativ/Agentic.git",
+    "url": "git+https://github.com/nahar-strativ/earmark.git",
     "directory": "packages/mcp"
   },
   "bugs": {
-    "url": "https://github.com/nahar-strativ/Agentic/issues"
+    "url": "https://github.com/nahar-strativ/earmark/issues"
   },
   "type": "module",
   "main": "./src/index.js",

@@ -4,14 +4,14 @@
   "description": "Local dev server that brokers earmark annotations between the browser overlay and AI agents.",
   "license": "MIT",
   "author": "nahar-strativ",
-  "homepage": "https://github.com/nahar-strativ/Agentic#readme",
+  "homepage": "https://github.com/nahar-strativ/earmark#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nahar-strativ/Agentic.git",
+    "url": "git+https://github.com/nahar-strativ/earmark.git",
     "directory": "packages/server"
   },
   "bugs": {
-    "url": "https://github.com/nahar-strativ/Agentic/issues"
+    "url": "https://github.com/nahar-strativ/earmark/issues"
   },
   "type": "module",
   "main": "./src/index.js",

@@ -523,7 +523,7 @@ whole SVG fixes it. It looked fine in the HTML source and in a `querySelector`
 check — only loading the href as an image, and reading the page's first visible
 text, caught it.
 
-**Deployed to GitHub Pages** at https://nahar-strativ.github.io/Agentic/ via
+**Deployed to GitHub Pages** at https://nahar-strativ.github.io/earmark/ via
 `.github/workflows/pages.yml`, triggered on any push touching `site/`. Only
 `site/index.html` is published; `build-fragment.js` is a local tool for embedding
 the page elsewhere and has no business being served. Pages is set to the
@@ -907,9 +907,19 @@ All four npm names were verified free at the time of choosing: `earmark`,
 `earmark-server`, `earmark-mcp`, `vite-plugin-earmark`. Rejected because taken:
 loupe, fovea, redline, nitpick, reticle, spyglass, pinpoint, lorgnette, dogear.
 
-Home: **https://github.com/nahar-strativ/Agentic** (public). The repo name and
-the project name differ deliberately — `Agentic` is the account's umbrella repo,
-`earmark` is the tool.
+Home: **https://github.com/nahar-strativ/earmark** (public).
+
+The repo was originally `Agentic`, on the reasoning that it was the account's
+umbrella repo while `earmark` was the tool inside it. **Renamed to `earmark` on
+2026-08-18** at the user's request: one project with one name is easier to find
+than a tool hiding inside an umbrella, and every package, the docs and the site all
+said `earmark` already.
+
+The rename moved the Pages site to
+**https://nahar-strativ.github.io/earmark/**, so all 51 references across the
+manifests, both site pages, the READMEs and this file were rewritten. GitHub
+redirects the old repo URL, but the old Pages URL is gone, which is the real cost
+of the change.
 
 ---
 
@@ -1017,8 +1027,8 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
 
 ## 8. References
 
-- **Our repo:** https://github.com/nahar-strativ/Agentic (public, account `nahar-strativ`)
-- **Live landing page:** https://nahar-strativ.github.io/Agentic/ (GitHub Pages,
+- **Our repo:** https://github.com/nahar-strativ/earmark (public, account `nahar-strativ`)
+- **Live landing page:** https://nahar-strativ.github.io/earmark/ (GitHub Pages,
   published from `site/index.html` by `.github/workflows/pages.yml`)
 - Reference product: https://www.agentation.com/
 - Their repo (PolyForm Shield 1.0.0, do **not** copy): https://github.com/benjitaylor/agentation
@@ -1046,7 +1056,7 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
 - **2026-08-17** — Audited the reference product's full feature set (§6). Two
   real gaps identified: sessions and `acknowledge`.
 - **2026-08-17** — Renamed `pindrop` → **earmark** (§5) and published to
-  https://github.com/nahar-strativ/Agentic. All 41 tests re-run green after the
+  https://github.com/nahar-strativ/earmark. All 41 tests re-run green after the
   rename.
 - **2026-08-17** — Closed both audit gaps: **sessions** (§4.11) and the
   **`acknowledged`** status (§4.12). MCP surface 8 → 11 tools; suite 41 → 53
@@ -1076,6 +1086,13 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   intact, and a real webpack build driven by `withEarmark`'s own rule emits both
   stamps into the bundle. Left open deliberately: screenshots, iframes, mobile,
   publishing, and the Svelte component chain.
+- **2026-08-18** — Renamed the repo `Agentic` → **`earmark`** (§5), which moved
+  the Pages site to https://nahar-strativ.github.io/earmark/ and required
+  rewriting 51 URLs. Confirmed the spelling first: the request read "earmak".
+- **2026-08-18** — **CI failed on its very first run** and was right to: Node 20
+  alone reported "fetch failed" in the webhook check, because the harness reused
+  one port across server restarts and undici had pooled a socket to a server that
+  no longer existed. Fixed in the harness; each server now gets its own port.
 - **2026-08-18** — Closed four follow-ups: **CI** on three Node versions running
   both the suite and the live check (§4.33), **source resolution inside frames**
   (§4.34), **touch** input with coarse-pointer sizing (§4.35), and
@@ -1115,7 +1132,7 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   no social metadata.
 - **2026-08-18** — Landing page: em dashes removed from the copy, favicon added
   as an inline encoded SVG, and the page deployed to **GitHub Pages** at
-  https://nahar-strativ.github.io/Agentic/ (§4.24). One bug found and fixed: an
+  https://nahar-strativ.github.io/earmark/ (§4.24). One bug found and fixed: an
   unencoded data URI truncated the favicon and leaked `" />` into the page.
 - **2026-08-18** — Landing page pinned to white: auto-dark removed, dark kept as
   an explicit `data-theme` opt-in (§4.23). The overlay's `theme` option is

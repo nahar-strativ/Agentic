@@ -30,7 +30,7 @@ stamped before the Svelte compiler sees it.
 
 ## Documentation
 
-Full reference: https://nahar-strativ.github.io/Agentic/docs.html
-Overview: https://nahar-strativ.github.io/Agentic/
+Full reference: https://nahar-strativ.github.io/earmark/docs.html
+Overview: https://nahar-strativ.github.io/earmark/
 
-Part of [earmark](https://github.com/nahar-strativ/Agentic). MIT licensed.
+Part of [earmark](https://github.com/nahar-strativ/earmark). MIT licensed.
