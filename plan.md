@@ -929,6 +929,71 @@ the failure only exists once the package is resolved by Node through its exports
 map. The lesson is the same one as §4.32: the only test of a distribution is
 consuming it the way a stranger would.
 
+### 4.39 Shadow DOM, found by auditing the limits (added 2026-08-18)
+
+Asked to review what earmark does not do. Reviewing it properly meant testing the
+claims rather than re-reading them, and one gap turned up that was not on any list:
+
+**A click inside an open shadow root was reported as the host.** Document-level hit
+testing stops at a shadow boundary, so `document.elementFromPoint` returns
+`<my-card>`, and a user pointing at a button inside a web component got the whole
+component annotated. Not false, but useless in the way that matters: the specific
+thing they pointed at was thrown away silently.
+
+Same shape as the iframe gap in §4.29, and the same fix: descend with
+`shadowRoot.elementFromPoint` after the frame descent. Closed roots expose no
+`shadowRoot` to any script, so picking correctly stops at the host there.
+
+The reporting needed more thought than the picking. **No CSS selector crosses a
+shadow boundary**, so the selector alone is unusable to an agent. The annotation
+carries the host chain and the expression the agent would otherwise have to work
+out:
+
+```
+document.querySelector('my-card').shadowRoot.querySelector('[data-testid="shadow-btn"]')
+```
+
+Verified by evaluating that expression in the page and confirming it returns the
+element that was clicked.
+
+Two consequences handled: pins re-resolve by walking the same host chain, and source
+resolution skips shadow targets entirely, because that markup is script-created and
+its styles never appear in `document.styleSheets`. Running the inner selector at
+document level would have matched something unrelated, which is the §4.13 failure
+mode again.
+
+`examples/frames/shadow.html` is the probe page. What remains genuinely impossible
+is now stated on both pages: closed roots, and the absence of a source line for
+anything script-created.
+
+### 4.40 Landing page: copy buttons, ruler clearance, one masthead (added 2026-08-18)
+
+Three pieces of feedback, all correct.
+
+**Copy buttons** on every code block and on the install command, built in script so
+a page without JavaScript never shows a button that cannot work. Two things learned
+while verifying:
+
+- `navigator.clipboard.writeText` needs **transient user activation**, so a
+  scripted `.click()` rejects with `NotAllowedError` even on a secure origin. It was
+  only provable with a real click through the browser's input pipeline, which then
+  put exactly `npm install -D earmark` on the clipboard.
+- The copied text is captured **before** the button is appended. Reading
+  `innerText` at click time would sweep up the button's own label, which is
+  invisible under a mouse and permanently visible on a touchscreen. A latent bug that
+  would only ever have shown up on a phone.
+
+The fallback selects the block instead, which covers both a missing clipboard API
+and a click without activation.
+
+**The ruler was crowding the text.** The tick labels sat in the same 24px gutter as
+the content, so the gutter widens to 64px once the ruler is showing.
+
+**One masthead.** The docs page had drifted: no version chip, and the old filled
+button rather than the bordered pill with a chevron. Both pages now carry the same
+chrome and the same ruler frame, and `test/site.test.mjs` pins it, since this is the
+second time the two pages have quietly diverged.
+
 ### 4.20 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
@@ -1002,7 +1067,7 @@ of the change.
 - [x] **Svelte** — markup stamping via the Vite plugin, or a preprocessor (§4.21)
 - [x] TypeScript declarations for all six packages, type-checked in CI (§4.22)
 - [x] AlignUI visual system across overlay and landing page (§4.23)
-- [x] 156 tests across fifteen suites, all passing
+- [x] 161 tests across fifteen suites, all passing
 - [x] CI on Node 20, 22 and 24, running the suite and the live check (§4.33)
 - [x] `npm run verify`: 20 assembled features checked live (§4.28)
 - [x] Documentation page and scroll-spy on the site (§4.27)
@@ -1018,6 +1083,8 @@ of the change.
       documented loader subset and have not been executed.
 - [x] **Same-origin iframes** are pickable (§4.29). Cross-origin frames are a
       browser security boundary and stay out of reach.
+- [x] **Open shadow roots** are picked into and reported with a reaching
+      expression (§4.39). Closed roots expose nothing to any script.
 - [x] **Source resolution inside a frame** (§4.34).
 - [x] **Canvas / WebGL** report their coordinate space rather than an empty area
       (§4.29). There is still no DOM inside a canvas, and there cannot be.
@@ -1138,6 +1205,14 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   intact, and a real webpack build driven by `withEarmark`'s own rule emits both
   stamps into the bundle. Left open deliberately: screenshots, iframes, mobile,
   publishing, and the Svelte component chain.
+- **2026-08-18** — Auditing the "what it does not do" list found a gap that was
+  not on it: a click inside an **open shadow root** was reported as the host
+  element, so a button in a web component annotated the whole component. Fixed by
+  descending into open roots and reporting the host chain plus the expression that
+  reaches the element (§4.39). Suite 158 → 161.
+- **2026-08-18** — Landing page: **copy buttons** on every code block and the
+  install command, the **ruler given clearance** from the text, and the docs
+  masthead brought back in line with the landing page, pinned by a test (§4.40).
 - **2026-08-18** — **Published all six packages to npm** at `0.1.0`, verified by
   installing them from the public registry (§4.38). That install found a real gap
   no dry run could: with an `exports` map, `<pkg>/package.json` must be declared or

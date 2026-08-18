@@ -449,6 +449,11 @@ element itself at full fidelity. Shipping `html2canvas` would send a re-render o
 your page rather than what the browser painted, which is the wrong answer for a
 tool whose promise is "here is what I am looking at".
 
+**Closed shadow roots** are opaque to every script, so a component using one is
+annotated as the component; open roots are picked into and reported with the
+expression that reaches the element. Nothing inside a shadow root or a canvas has a
+source line, because that markup is script-created.
+
 **Cross-origin iframes** stay invisible, because that is a browser
 security boundary rather than a gap to work around; same-origin frames are
 pickable, and their own HTML and CSS are resolved. A canvas has no DOM, so earmark

@@ -161,3 +161,50 @@ test('an unframed element says nothing about frames', () => {
   });
   assert.doesNotMatch(out, /iframe/i);
 });
+
+// ---------------------------------------------------------- shadow DOM ------
+
+test('a shadow element hands over the expression that reaches it', () => {
+  const out = annotationToMarkdown({
+    id: 'a6',
+    note: 'Shadow button colour',
+    target: {
+      kind: 'element',
+      tag: 'button',
+      label: 'button "Shadow button"',
+      selector: '[data-testid="shadow-btn"]',
+      shadow: {
+        hosts: ['my-card'],
+        mode: 'open',
+        expression: "document.querySelector('my-card').shadowRoot.querySelector('[data-testid=\"shadow-btn\"]')",
+      },
+    },
+  });
+  assert.match(out, /\*\*Inside shadow DOM:\*\* `my-card`/);
+  assert.match(out, /reach it with: `document\.querySelector\('my-card'\)\.shadowRoot/);
+  assert.match(out, /unique inside that shadow root, not in the document/);
+});
+
+test('nested shadow roots read outermost first', () => {
+  const out = annotationToMarkdown({
+    id: 'a7',
+    note: 'x',
+    target: {
+      kind: 'element',
+      tag: 'input',
+      label: 'input',
+      selector: 'input',
+      shadow: { hosts: ['app-shell', 'my-card'], mode: 'open', expression: 'document…' },
+    },
+  });
+  assert.match(out, /`app-shell` › `my-card`/);
+});
+
+test('an element outside any shadow root says nothing about one', () => {
+  const out = annotationToMarkdown({
+    id: 'a8',
+    note: 'x',
+    target: { kind: 'element', tag: 'button', label: 'button', selector: '#b' },
+  });
+  assert.doesNotMatch(out, /shadow/i);
+});

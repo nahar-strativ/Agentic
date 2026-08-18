@@ -99,3 +99,35 @@ test('the Pages workflow publishes both pages and nothing else', () => {
   assert.match(workflow, /cp site\/docs\.html _site\/docs\.html/);
   assert.doesNotMatch(workflow, /cp -r site/, 'build-fragment.js must not be served');
 });
+
+test('both pages share the same masthead chrome', () => {
+  // Asked directly why the docs nav looked different. It was: no version chip, and
+  // an older filled button instead of the bordered pill. Pinned here so the two
+  // pages cannot drift apart again without a failure.
+  for (const [name, html] of [['index.html', index], ['docs.html', docs]]) {
+    const head = html.slice(html.indexOf('<header class="masthead">'), html.indexOf('</header>'));
+    assert.match(head, /class="wordmark"/, `${name} masthead needs the wordmark`);
+    assert.match(head, /class="tag">v0\.1</, `${name} masthead needs the version chip`);
+    assert.match(head, /class="is-cta"/, `${name} action must be the bordered pill`);
+    assert.match(head, /&#8250;|›/, `${name} action needs its chevron`);
+    assert.doesNotMatch(head, /class="is-primary"/, `${name} still has the old filled button`);
+  }
+
+  for (const rule of ['.tag {', '.masthead nav a.is-cta {', '.rail {']) {
+    assert.ok(index.includes(rule), `index.html is missing ${rule}`);
+    assert.ok(docs.includes(rule), `docs.html is missing ${rule}`);
+  }
+});
+
+test('every code block on both pages can be copied', () => {
+  for (const [name, html] of [['index.html', index], ['docs.html', docs]]) {
+    // Created in script, so it is never in the markup: check the maker and the rule.
+    assert.match(html, /button\.className = 'copy';/, `${name} does not create a copy button`);
+    assert.ok(html.includes('.copy {'), `${name} has no styles for the copy button`);
+    // Captured before the button exists, or the button's own label gets copied on
+    // touch devices where it is permanently visible.
+    assert.match(html, /var text = pre\.innerText;/, `${name} must snapshot the text`);
+    assert.doesNotMatch(html, /target\.read\(\)/, `${name} still reads at click time`);
+  }
+  assert.match(index, /data-copy="npm install -D earmark"/, 'the install command must be copyable');
+});

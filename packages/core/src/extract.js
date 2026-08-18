@@ -357,6 +357,47 @@ export function extractElement(el, options = {}) {
     /* A selector is only unique within its document, so an agent that is handed
        one for a framed element needs to be told which document to run it in. */
     ...(frame ? { frame: frameInfo(frame) } : {}),
+    ...(() => {
+      const shadow = shadowInfo(el);
+      return shadow ? { shadow } : {};
+    })(),
+  };
+}
+
+/**
+ * How to reach an element that lives inside one or more shadow roots.
+ *
+ * A selector is only unique within its own tree, and there is no CSS syntax that
+ * crosses a shadow boundary, so the selector alone is unusable to an agent. What
+ * is usable is the chain of hosts plus the expression that walks it, which is
+ * exactly what the agent would have to type.
+ *
+ * @param {Element} el
+ * @returns {object | null}
+ */
+function shadowInfo(el) {
+  /** @type {string[]} */
+  const hosts = [];
+  let node = el;
+  let mode = null;
+
+  while (node) {
+    const root = node.getRootNode?.();
+    if (!root || !(root instanceof ShadowRoot)) break;
+    mode = root.mode;
+    hosts.unshift(uniqueSelector(root.host));
+    node = root.host;
+  }
+
+  if (!hosts.length) return null;
+
+  const inner = uniqueSelector(el);
+  const path = hosts.map((h) => `querySelector('${h}').shadowRoot`).join('.');
+  return {
+    hosts,
+    mode,
+    /* Paste-able: the agent has no other way to reach this node. */
+    expression: `document.${path}.querySelector('${inner}')`,
   };
 }
 

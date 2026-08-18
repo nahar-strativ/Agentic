@@ -65,6 +65,14 @@ function targetLines(target) {
   lines.push(`- **Element:** ${tag}${target.label}`);
   lines.push(`- **Selector:** \`${target.selector}\``);
 
+  /* No CSS selector crosses a shadow boundary, so the selector above cannot be
+     run as-is. Hand over the expression that can. */
+  if (target.shadow) {
+    lines.push(`- **Inside shadow DOM:** ${target.shadow.hosts.map((h) => `\`${h}\``).join(' › ')}`);
+    lines.push(`  - reach it with: \`${target.shadow.expression}\``);
+    lines.push('  - the selector above is unique inside that shadow root, not in the document');
+  }
+
   /* A selector is unique within one document. Saying which document has to come
      with it, or the agent runs it in the wrong one. */
   if (target.frame) {

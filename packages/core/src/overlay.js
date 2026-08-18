@@ -455,6 +455,10 @@ export function createOverlay(config) {
            resolved against the frame's HTML and stylesheets. The selector must
            still be run in the right document: against the parent it could match
            something unrelated and report a confidently wrong line. */
+        /* A shadow root's markup never appears in the served HTML, and its styles
+           are not in document.styleSheets, so there is nothing to resolve and the
+           selector would match the wrong thing at document level. */
+        if (target.shadow) return;
         const frame = frameFor(target);
         if (target.frame && !frame) return; // the frame is gone; claim nothing
         const el = frame ? safeQueryIn(frame.doc, target.selector) : safeQuery(target.selector);
@@ -628,6 +632,11 @@ export function createOverlay(config) {
    * @param {object} target
    */
   function liveRect(target) {
+    if (target.shadow) {
+      const el = resolveShadowTarget(target);
+      if (el) return rectOf(el, frameFor(target));
+      return target.rect;
+    }
     if (target.selector) {
       try {
         /* A framed selector is only meaningful inside that frame's document, and
@@ -641,6 +650,27 @@ export function createOverlay(config) {
       }
     }
     return target.rect;
+  }
+
+  /**
+   * Walk the recorded host chain to find a shadow target again.
+   *
+   * @param {any} target
+   * @returns {Element | null}
+   */
+  function resolveShadowTarget(target) {
+    try {
+      /** @type {Document | ShadowRoot | null} */
+      let scope = frameFor(target)?.doc || document;
+      for (const host of target.shadow.hosts) {
+        const el = scope.querySelector(host);
+        if (!el?.shadowRoot) return null;
+        scope = el.shadowRoot;
+      }
+      return scope.querySelector(target.selector);
+    } catch {
+      return null;
+    }
   }
 
   /**

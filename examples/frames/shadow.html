@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>shadow dom probe</title>
+    <style>
+      body { margin: 0; padding: 32px; font: 15px/1.6 system-ui, sans-serif; background: #f7f7f7; }
+      .panel { background: #fff; border: 1px solid #ebebeb; border-radius: 16px; padding: 18px; max-width: 460px; }
+    </style>
+  </head>
+  <body>
+    <div class="panel">
+      <h1 style="font-size: 18px; margin: 0 0 12px">Web component probe</h1>
+      <my-card></my-card>
+      <button id="plain" data-testid="plain-btn">Plain button</button>
+    </div>
+
+    <script type="module">
+      class MyCard extends HTMLElement {
+        constructor() {
+          super();
+          const root = this.attachShadow({ mode: 'open' });
+          root.innerHTML = `
+            <style>
+              .inner { padding: 12px; border: 1px dashed #fa7319; border-radius: 10px; }
+              button { padding: 7px 13px; border-radius: 10px; border: 1px solid #ebebeb; background: #335cff; color: #fff; }
+            </style>
+            <div class="inner">
+              <p>Inside an open shadow root.</p>
+              <button class="shadow-cta" data-testid="shadow-btn">Shadow button</button>
+            </div>`;
+        }
+      }
+      customElements.define('my-card', MyCard);
+
+      import('/node_modules/earmark/src/index.js').then(({ createEarmark }) => createEarmark({ theme: 'light' }));
+    </script>
+  </body>
+</html>

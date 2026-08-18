@@ -158,10 +158,60 @@
         -webkit-font-smoothing: antialiased;
       }
 
+      /* Two guide rules down the page with ticks every 25px, matching the landing
+         page. Decorative only. */
+      .sheet::before,
+      .sheet::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 5px;
+        background:
+          linear-gradient(var(--stroke), var(--stroke)) 0 0 / 1px 100% no-repeat,
+          repeating-linear-gradient(var(--stroke) 0 1px, transparent 1px 25px);
+        pointer-events: none;
+      }
+      .sheet::before { left: 0; }
+      .sheet::after { right: 0; transform: scaleX(-1); }
+
+      .rail {
+        position: absolute;
+        top: 0;
+        width: 26px;
+        pointer-events: none;
+        font: 400 8px/1 var(--mono);
+        letter-spacing: 0.02em;
+        color: var(--stroke-strong);
+        user-select: none;
+      }
+
+      .rail-left { left: 8px; }
+      .rail-right { right: 8px; text-align: right; }
+
+      .rail span {
+        position: absolute;
+        display: block;
+        width: 100%;
+        transform: translateY(-4px);
+      }
+
+      @media (max-width: 720px) {
+        .sheet::before,
+        .sheet::after,
+        .rail { display: none; }
+      }
+
       .sheet {
+        position: relative;
         max-width: var(--page);
         margin: 0 auto;
         padding: 0 var(--gutter) 96px;
+      }
+
+      /* Matches the landing page, so both pages breathe the same. */
+      @media (min-width: 721px) {
+        .sheet { padding-left: 64px; padding-right: 64px; }
       }
 
       /* ---------- masthead ---------- */
@@ -227,16 +277,69 @@
         color: var(--fg);
       }
 
+      /* Same chip as the landing page. test/site.test.mjs pins the shared chrome so
+         the two mastheads cannot drift apart again. */
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        background: var(--primary-weak);
+        color: var(--primary);
+        font: 500 0.6875rem/1.45 var(--sans);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .masthead .tag { margin: 0; }
+
       .masthead nav a.is-here {
         background: var(--primary-weak);
         color: var(--primary);
       }
 
-      .masthead nav a.is-primary {
-        background: var(--fg);
-        color: var(--surface);
+      .masthead nav a.is-cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: 6px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+        color: var(--fg);
       }
-      .masthead nav a.is-primary:hover { opacity: 0.88; }
+
+      .masthead nav a.is-cta:hover {
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .masthead nav a.is-cta .chev {
+        color: var(--fg-soft);
+        font-size: 1.05em;
+        line-height: 1;
+      }
+
+      /* Narrow screens: one row, links scrolling sideways under a pinned action. */
+      @media (max-width: 720px) {
+        .masthead { gap: 8px; padding-right: 6px; }
+        .masthead .tag { display: none; }
+        .masthead nav {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .masthead nav::-webkit-scrollbar { display: none; }
+        .masthead nav a.is-cta {
+          position: sticky;
+          right: 0;
+          margin-left: 4px;
+          box-shadow: var(--shadow-sm), -10px 0 10px 2px var(--surface);
+        }
+      }
 
       /* ---------- layout ---------- */
 
@@ -529,6 +632,46 @@
         background: var(--stroke-strong);
       }
 
+      /* ---------- copy buttons ---------- */
+
+      /* Added by script, so there is never a dead button when JavaScript is off. */
+      .copy-wrap { position: relative; }
+
+      .copy {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 9px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+        font: 500 0.6875rem/1.45 var(--sans);
+        letter-spacing: 0.02em;
+        color: var(--fg-dim);
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 120ms, color 120ms;
+      }
+
+      .copy-wrap:hover .copy,
+      .copy:focus-visible {
+        opacity: 1;
+      }
+
+      .copy[data-copied="true"] {
+        opacity: 1;
+        color: var(--state-done);
+      }
+
+      /* A hover-revealed control is unreachable on a touchscreen. */
+      @media (pointer: coarse) {
+        .copy { opacity: 1; }
+      }
+
       /* ---------- footer ---------- */
 
       footer {
@@ -554,12 +697,26 @@
   </head>
   <body>
     <div class="sheet">
+      <!-- The same ruler frame as the landing page, filled by the script below and
+           empty without JavaScript, where the CSS hairlines still show. -->
+      <div class="rail rail-left" aria-hidden="true"></div>
+      <div class="rail rail-right" aria-hidden="true"></div>
+      <!-- Deliberately the same masthead as the landing page: wordmark, version,
+           links, then the bordered action. The links differ because the pages do
+           (that page is one long document with anchors, this one has a sidebar),
+           but nothing else should. -->
       <header class="masthead">
         <a class="wordmark" href="./"><span class="dot"></span>earmark</a>
+        <span class="tag">v0.1</span>
         <nav>
           <a href="./">Overview</a>
           <a class="is-here" href="./docs.html">Docs</a>
-          <a class="is-primary" href="https://github.com/nahar-strativ/earmark">GitHub</a>
+          <a href="#install">Install</a>
+          <a href="#tools">MCP tools</a>
+          <a href="#api">Broker API</a>
+          <a class="is-cta" href="https://github.com/nahar-strativ/earmark"
+            >GitHub<span class="chev">&#8250;</span></a
+          >
         </nav>
       </header>
 
@@ -1129,6 +1286,8 @@ Everything checks out.</pre>
               <li><strong>Touch is supported, small screens are not the target.</strong> Picking, region drags and the panel all work by touch, and the controls grow on a coarse pointer. It remains a tool for the machine you develop on.</li>
               <li><strong>No screenshots, by decision.</strong> Your agent drives a browser and is handed a verified selector plus a URL, so it can capture the element itself at full fidelity. A bundled library would send a re-render of the page rather than what the browser actually painted.</li>
               <li><strong>Cross-origin iframes stay invisible.</strong> Same-origin frames are pickable (see below). A cross-origin frame is a browser security boundary: <code>contentDocument</code> throws and there is nothing further to try.</li>
+              <li><strong>Closed shadow roots are opaque.</strong> Open roots are picked into. A root created with <code>mode: 'closed'</code> exposes nothing to any script, so the custom element itself is annotated instead.</li>
+              <li><strong>No source line inside a shadow root or a canvas.</strong> That markup is script-created and its styles are not in the document's stylesheets, so there is no file to walk. You still get the selector, the reaching expression and the styles.</li>
               <li><strong>Version 0.1.x.</strong> All six packages are on npm; none of this has been through a second pair of hands yet.</li>
               <li><strong>A canvas has no DOM.</strong> earmark reports its coordinate space instead of pretending otherwise.</li>
             </ul>
@@ -1160,6 +1319,25 @@ Everything checks out.</pre>
 - **CSS rules that style it:**
   - `button` → <span class="v">examples/frames/child.html (inline &lt;style&gt;):9</span>
   - `button.primary` → <span class="v">examples/frames/child.html (inline &lt;style&gt;):10</span></pre>
+
+            <h3>Shadow DOM and web components</h3>
+            <p>
+              Document-level hit testing stops at a shadow host, so a click on a
+              button inside a web component would otherwise be reported as the
+              component. Picking descends through open roots instead, and because no
+              CSS selector crosses a shadow boundary, the annotation carries the
+              host chain and the expression that actually reaches the element:
+            </p>
+            <pre>- **Element:** `&lt;button&gt;` button[shadow-btn]
+- **Selector:** <span class="m">[data-testid="shadow-btn"]</span>
+- **Inside shadow DOM:** <span class="v">my-card</span>
+  - reach it with: <span class="v">document.querySelector('my-card').shadowRoot.querySelector('[data-testid="shadow-btn"]')</span>
+  - the selector above is unique inside that shadow root, not in the document</pre>
+            <p>
+              Pins follow the element by walking that same chain. A closed root
+              exposes no <code>shadowRoot</code> to anyone, so picking correctly
+              stops at the host.
+            </p>
 
             <h3>Canvas and WebGL</h3>
             <p>
@@ -1199,6 +1377,106 @@ Everything checks out.</pre>
         <a href="https://github.com/nahar-strativ/earmark">github.com/nahar-strativ/earmark</a>
       </footer>
     </div>
+
+    <script>
+      /* Tick labels for the ruler frame. Decorative, and harmless if it never runs. */
+      (function () {
+        var rails = document.querySelectorAll('.rail');
+        var sheet = document.querySelector('.sheet');
+        if (!rails.length || !sheet) return;
+
+        var STEP = 100;
+        var last = -1;
+
+        function draw() {
+          var height = sheet.offsetHeight;
+          if (height === last) return;
+          last = height;
+
+          var marks = '';
+          for (var y = 0; y <= height - 40; y += STEP) {
+            marks += '<span style="top:' + y + 'px">' + y + '</span>';
+          }
+          rails.forEach(function (rail) {
+            rail.innerHTML = marks;
+          });
+        }
+
+        draw();
+        addEventListener('resize', draw);
+      })();
+    </script>
+
+    <script>
+      /* Copy buttons on every code block and on the install command.
+
+         Built in script rather than markup so a page without JavaScript never
+         shows a button that cannot work. The clipboard write is wrapped: it needs
+         a secure context, and a page served over plain http would otherwise throw
+         into the console on every click. */
+      (function () {
+        var targets = [];
+        document.querySelectorAll('pre').forEach(function (pre) {
+          /* Captured before the button is appended. Reading innerText at click time
+             would sweep up the button's own label, which is invisible on a mouse
+             but permanently visible on a touchscreen. */
+          var text = pre.innerText;
+          targets.push({ host: pre, text: text });
+        });
+        document.querySelectorAll('[data-copy]').forEach(function (el) {
+          targets.push({ host: el, text: el.getAttribute('data-copy') || el.innerText });
+        });
+        if (!targets.length) return;
+
+        targets.forEach(function (target) {
+          var host = target.host;
+          host.classList.add('copy-wrap');
+
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'copy';
+          button.textContent = 'Copy';
+          button.setAttribute('aria-label', 'Copy to clipboard');
+
+          button.addEventListener('click', function () {
+            var text = target.text.replace(/^\s*\$\s?/, '').trim();
+
+            var done = function (ok) {
+              button.textContent = ok ? 'Copied' : 'Press \u2318C';
+              button.setAttribute('data-copied', String(ok));
+              setTimeout(function () {
+                button.textContent = 'Copy';
+                button.removeAttribute('data-copied');
+              }, 1600);
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+              navigator.clipboard.writeText(text).then(
+                function () { done(true); },
+                function () { done(false); }
+              );
+              return;
+            }
+
+            /* No clipboard write available, which also covers a click that carries
+               no user activation: select the text so the shortcut works. */
+            try {
+              var range = document.createRange();
+              range.selectNodeContents(host);
+              var selection = getSelection();
+              selection.removeAllRanges();
+              selection.addRange(range);
+              done(false);
+            } catch (error) {
+              done(false);
+            }
+          });
+
+          host.appendChild(button);
+        });
+      })();
+
+    </script>
 
     <script>
       /* Scroll-spy for the table of contents. Same rule as the landing page: the

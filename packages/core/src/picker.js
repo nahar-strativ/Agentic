@@ -113,6 +113,18 @@ export function createPicker(handlers) {
       }
     }
 
+    /* Open shadow roots hide their contents from document-level hit testing: the
+       host is returned, so a click on a button inside a web component would be
+       reported as the component. Descend the same way as for frames. A closed
+       root exposes no shadowRoot and correctly stops here. */
+    guard = 0;
+    while (el && el.shadowRoot && guard < 8) {
+      guard += 1;
+      const inner = el.shadowRoot.elementFromPoint(e.clientX, e.clientY);
+      if (!inner || inner === el) break;
+      el = inner;
+    }
+
     if (!el || handlers.isOverlay(el)) return null;
     return el;
   };

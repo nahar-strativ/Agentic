@@ -241,6 +241,12 @@
         padding: 0 var(--gutter) 96px;
       }
 
+      /* Once the ruler is showing, the gutter has to clear it: the tick labels sat
+         hard against the text otherwise. */
+      @media (min-width: 721px) {
+        .sheet { padding-left: 64px; padding-right: 64px; }
+      }
+
       /* Two guide rules down the page with ticks every 25px: a measuring frame
          around a tool about measuring things. Decorative only. */
       .sheet::before,
@@ -594,6 +600,20 @@
       }
 
       .cmd span { color: var(--fg-soft); }
+
+      /* The command pill is dark and small, so its copy button sits inside it on
+         the same ink rather than floating a white chip over it. */
+      .cmd .copy {
+        position: static;
+        margin-left: 6px;
+        padding: 2px 8px;
+        background: rgba(255, 255, 255, 0.12);
+        box-shadow: none;
+        color: var(--ground);
+        opacity: 1;
+      }
+
+      .cmd .copy[data-copied="true"] { color: var(--state-done); }
 
       .ghost {
         display: inline-flex;
@@ -1031,6 +1051,46 @@
         color: var(--fg-soft);
       }
 
+      /* ---------- copy buttons ---------- */
+
+      /* Added by script, so there is never a dead button when JavaScript is off. */
+      .copy-wrap { position: relative; }
+
+      .copy {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 9px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+        font: 500 0.6875rem/1.45 var(--sans);
+        letter-spacing: 0.02em;
+        color: var(--fg-dim);
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 120ms, color 120ms;
+      }
+
+      .copy-wrap:hover .copy,
+      .copy:focus-visible {
+        opacity: 1;
+      }
+
+      .copy[data-copied="true"] {
+        opacity: 1;
+        color: var(--state-done);
+      }
+
+      /* A hover-revealed control is unreachable on a touchscreen. */
+      @media (pointer: coarse) {
+        .copy { opacity: 1; }
+      }
+
       /* ---------- footer ---------- */
 
       /* ---------- footer ---------- */
@@ -1208,7 +1268,9 @@
             “the button on the right looks wrong”.
           </p>
           <div class="hero-actions">
-            <span class="cmd"><span>$</span>npm install -D earmark</span>
+            <span class="cmd" data-copy="npm install -D earmark"
+              ><span>$</span>npm install -D earmark</span
+            >
             <a class="ghost" href="./docs.html">Read the docs</a>
             <a class="ghost" href="https://github.com/nahar-strativ/earmark"
               >Source on GitHub</a
@@ -1930,6 +1992,17 @@ curl http://127.0.0.1:7331/markdown</pre>
               renderer.
             </li>
             <li>
+              <strong>Closed shadow roots are opaque.</strong> Open ones are picked
+              into and reported with the expression that reaches them. A root
+              created with <code>mode: 'closed'</code> exposes nothing to any
+              script, so the component itself is what gets annotated.
+            </li>
+            <li>
+              <strong>Nothing inside a shadow root or a canvas has a source
+              line.</strong> That markup is created by script and its styles never
+              appear in the document's stylesheets, so there is no file to walk.
+            </li>
+            <li>
               <strong>Version 0.1.x.</strong> All six packages are on npm and the
               whole surface is tested, but nothing here has been through a second
               pair of hands yet.
@@ -1987,6 +2060,77 @@ curl http://127.0.0.1:7331/markdown</pre>
         </div>
       </footer>
     </div>
+
+    <script>
+      /* Copy buttons on every code block and on the install command.
+
+         Built in script rather than markup so a page without JavaScript never
+         shows a button that cannot work. The clipboard write is wrapped: it needs
+         a secure context, and a page served over plain http would otherwise throw
+         into the console on every click. */
+      (function () {
+        var targets = [];
+        document.querySelectorAll('pre').forEach(function (pre) {
+          /* Captured before the button is appended. Reading innerText at click time
+             would sweep up the button's own label, which is invisible on a mouse
+             but permanently visible on a touchscreen. */
+          var text = pre.innerText;
+          targets.push({ host: pre, text: text });
+        });
+        document.querySelectorAll('[data-copy]').forEach(function (el) {
+          targets.push({ host: el, text: el.getAttribute('data-copy') || el.innerText });
+        });
+        if (!targets.length) return;
+
+        targets.forEach(function (target) {
+          var host = target.host;
+          host.classList.add('copy-wrap');
+
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'copy';
+          button.textContent = 'Copy';
+          button.setAttribute('aria-label', 'Copy to clipboard');
+
+          button.addEventListener('click', function () {
+            var text = target.text.replace(/^\s*\$\s?/, '').trim();
+
+            var done = function (ok) {
+              button.textContent = ok ? 'Copied' : 'Press \u2318C';
+              button.setAttribute('data-copied', String(ok));
+              setTimeout(function () {
+                button.textContent = 'Copy';
+                button.removeAttribute('data-copied');
+              }, 1600);
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+              navigator.clipboard.writeText(text).then(
+                function () { done(true); },
+                function () { done(false); }
+              );
+              return;
+            }
+
+            /* No clipboard write available, which also covers a click that carries
+               no user activation: select the text so the shortcut works. */
+            try {
+              var range = document.createRange();
+              range.selectNodeContents(host);
+              var selection = getSelection();
+              selection.removeAllRanges();
+              selection.addRange(range);
+              done(false);
+            } catch (error) {
+              done(false);
+            }
+          });
+
+          host.appendChild(button);
+        });
+      })();
+
+    </script>
 
     <script>
       /* Tick labels for the ruler frame. Decorative, and deliberately harmless:
