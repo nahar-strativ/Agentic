@@ -131,7 +131,7 @@ export async function runDoctor(options = {}) {
     name: 'Broker',
     ok: brokerOk,
     detail: brokerOk
-      ? `responding on ${base} — ${health.count} annotations, ${health.sessions} sessions`
+      ? `responding on ${base} (${health.count} annotations, ${health.sessions} sessions)`
       : `nothing answering on ${base}`,
     fix: brokerOk
       ? undefined

@@ -3,24 +3,25 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>earmark — point at it, your agent finds the code</title>
+    <title>earmark: point at it, your agent finds the code</title>
+    <link rel="icon" href="data:image/svg+xml,<svg%20xmlns="http://www.w3.org/2000/svg"%20viewBox="0%200%2032%2032"><path%20d="M4%209a5%205%200%200%201%205-5h14l5%205v14a5%205%200%200%201-5%205H9a5%205%200%200%201-5-5Z"%20fill="#fa7319"/><path%20d="M23%204l5%205h-5Z"%20fill="#ffffff"%20fill-opacity=".92"/></svg>" />
     <meta
       name="description"
       content="Click an element in your running app, say what should change, and your coding agent gets the selector, the source file and line, the component path and the computed styles."
     />
     <style>
       /* ============================================================
-         earmark — landing page and guide
+         earmark landing page and guide
          Visual system: AlignUI. Neutral ground, one blue primary, hairline
          strokes, layered shadows closing on a 1px ring, Inter-first type with
          negative tracking, and a blueprint ruler frame down both edges.
-         Reimplemented as our own tokens — no stylesheet, font file or asset is
+         Reimplemented as our own tokens: no stylesheet, font file or asset is
          taken from anywhere else.
          Orange stays the marking ink: pins, the logo corner, the accent swipe.
          ============================================================ */
 
       :root {
-        /* Neutral ramp — light is defined in full here so the un-stamped
+        /* Neutral ramp. Light is defined in full here so the un-stamped
            default state always resolves. */
         --ground: #f7f7f7;
         --surface: #ffffff;
@@ -47,7 +48,7 @@
         --state-done: #1fc16b;
         --state-off: #a3a3a3;
 
-        /* Code — light, the way AlignUI sets code */
+        /* Code: light, the way AlignUI sets code */
         --code-bg: #ffffff;
         --code-fg: #3d3d3d;
         --tok-key: #8461e5;
@@ -64,9 +65,9 @@
         --rule-strong: var(--stroke-strong);
         --accent: var(--primary);
 
-        /* Type — Inter when the machine has it, the system face otherwise.
-           Nothing is fetched: the CSP on embedding targets blocks font CDNs,
-           and a silent fallback is worse than a deliberate stack. */
+        /* Type: Inter when the machine has it, the system face otherwise.
+           Nothing is fetched, because the CSP on embedding targets blocks font
+           CDNs and a silent fallback is worse than a deliberate stack. */
         --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           "Helvetica Neue", Arial, sans-serif;
         --mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono",
@@ -104,7 +105,7 @@
         color-scheme: light;
       }
 
-      /* No automatic dark. The page is white on every machine — a dark-mode OS
+      /* No automatic dark. The page is white on every machine, and a dark-mode OS
          does not flip it. The dark token set below is still here and still
          complete, but it is now opt-in: stamp data-theme="dark" on the root
          element. */
@@ -178,7 +179,7 @@
         padding: 0 var(--gutter) 96px;
       }
 
-      /* Two guide rules down the page with ticks every 25px — a measuring frame
+      /* Two guide rules down the page with ticks every 25px: a measuring frame
          around a tool about measuring things. Decorative only. */
       .sheet::before,
       .sheet::after {
@@ -765,8 +766,8 @@
         flex: none;
       }
 
-      /* The markup reads `<b>Title</b><span> — text</span>` as one sentence, so
-         the title stays inline; a block-level <b> leaves the dash dangling. */
+      /* The markup reads `<b>Title</b><span>: text</span>` as one sentence, so
+         the title stays inline; a block-level <b> would break it in two. */
       .step b { display: inline; }
 
       /* ---------- status pills ---------- */
@@ -943,7 +944,7 @@
           <p>
             Click an element in your running app and say what should change.
             earmark hands your agent the selector, the source file and line, the
-            component path, the computed styles and the exact box — instead of
+            component path, the computed styles and the exact box, instead of
             “the button on the right looks wrong”.
           </p>
           <div class="hero-actions">
@@ -1006,7 +1007,7 @@
           <p>
             earmark removes the translation step. You point; it captures the
             things a machine can act on. Everything it reports is verified
-            before it is reported — a selector is checked against the document
+            before it is reported: a selector is checked against the document
             until it resolves to exactly one element, and a source line is
             checked against the live DOM before it is claimed.
           </p>
@@ -1053,7 +1054,7 @@
             behind a development guard so it never reaches production.
           </p>
 
-          <pre><span class="c">// main.js — anywhere that runs once, in development</span>
+          <pre><span class="c">// main.js: anywhere that runs once, in development</span>
 <span class="c">import</span> { createEarmark } <span class="c">from</span> <span class="s">'earmark'</span>
 
 <span class="c">if</span> (import.meta.env.DEV) createEarmark()</pre>
@@ -1236,31 +1237,31 @@
             <div class="step">
               <div>
                 <b>Agent blocks on <code>earmark_watch_annotations</code></b>
-                <span> — a long poll, not a busy loop. It wakes the moment you save an annotation.</span>
+                <span>: a long poll, not a busy loop. It wakes the moment you save an annotation.</span>
               </div>
             </div>
             <div class="step">
               <div>
                 <b>Acknowledges it</b>
-                <span> — the pin turns blue. You can see it has been picked up rather than ignored.</span>
+                <span>: the pin turns blue. You can see it has been picked up rather than ignored.</span>
               </div>
             </div>
             <div class="step">
               <div>
                 <b>Opens the reported file and line</b>
-                <span> — no grep, no guessing which of four buttons you meant.</span>
+                <span>: no grep, no guessing which of four buttons you meant.</span>
               </div>
             </div>
             <div class="step">
               <div>
                 <b>Asks, if the feedback is ambiguous</b>
-                <span> — the question appears on the pin; your answer wakes the next watch.</span>
+                <span>: the question appears on the pin; your answer wakes the next watch.</span>
               </div>
             </div>
             <div class="step">
               <div>
                 <b>Resolves with a summary</b>
-                <span> — the pin turns green, and the loop starts again.</span>
+                <span>: the pin turns green, and the loop starts again.</span>
               </div>
             </div>
           </div>
@@ -1282,7 +1283,7 @@
           <h2>Three ways to find the line, in order of confidence.</h2>
           <p>
             A selector tells an agent what to grep for. A file and line tells it
-            where to look — the difference between one edit and three searches.
+            where to look: the difference between one edit and three searches.
             earmark tries each tier and reports which one produced the answer.
           </p>
 
@@ -1293,7 +1294,7 @@
               <p>
                 Vite, Next.js and Svelte all write
                 <code>data-earmark-src</code> onto every element you actually
-                wrote. Exact, and it works on React 19 — which removed the
+                wrote. Exact, and it works on React 19, which removed the
                 runtime <code>_debugSource</code> field that older tools rely
                 on.
               </p>
@@ -1304,7 +1305,7 @@
               <p>
                 No build step? The document is re-fetched and parsed with
                 position tracking, then the element’s path is walked in the
-                source. Every step is checked against the live tag name — so a
+                source. Every step is checked against the live tag name, so a
                 framework shell reports nothing rather than a wrong line.
               </p>
             </div>
@@ -1326,7 +1327,7 @@
 <span class="c">export default</span> { plugins: [react(), earmark()] }</pre>
           <p>
             Covers <code>.jsx</code>, <code>.tsx</code> and
-            <code>.svelte</code> — the Svelte markup is stamped before the
+            <code>.svelte</code>. The Svelte markup is stamped before the
             compiler sees it, so SvelteKit needs nothing extra.
           </p>
 
@@ -1345,7 +1346,7 @@
           <h3>Plain HTML and CSS</h3>
           <p>
             Nothing to configure. Every CSS rule that actually matches the
-            element is mapped back to the file and line that declares it —
+            element is mapped back to the file and line that declares it,
             including rules inside a <code>&lt;style&gt;</code> block, which are
             offset into their host document rather than reported against a
             phantom file.
@@ -1361,7 +1362,7 @@
           <div class="note">
             <p>
               The agent now knows the padding it has to change lives in the
-              generic <code>button</code> rule at line 49 — not in
+              generic <code>button</code> rule at line 49, not in
               <code>.primary</code>. That distinction is usually the whole bug.
             </p>
           </div>
@@ -1461,7 +1462,7 @@ npx earmark-mcp init</pre>
 <span class="f">✓</span> Node version: v24.12.0
 <span class="f">✓</span> sqlite backend: available
 <span class="f">✓</span> MCP registration: earmark is registered in .mcp.json
-<span class="f">✓</span> Broker: responding on http://127.0.0.1:7331 — 1 annotations, 2 sessions
+<span class="f">✓</span> Broker: responding on http://127.0.0.1:7331 (1 annotations, 2 sessions)
 <span class="f">✓</span> Browser overlay: http://localhost:5173/ (1 annotations)
 
 Everything checks out.</pre>
@@ -1480,7 +1481,7 @@ Everything checks out.</pre>
           <p>
             The session id lives in <code>sessionStorage</code>, so refreshing
             does not fragment your feedback into three sessions. Each annotation
-            still carries its own URL — a tab that wandered across
+            still carries its own URL: a tab that wandered across
             <code>/dashboard</code>, <code>/settings</code> and
             <code>/billing</code> gives the agent one group with three
             differently-routed items.
@@ -1493,7 +1494,7 @@ Everything checks out.</pre>
             </li>
             <li>
               A tab counts as connected for exactly as long as its event stream
-              is open — no heartbeat protocol to get wrong.
+              is open. No heartbeat protocol to get wrong.
             </li>
             <li>
               Reconnecting merges rather than overwrites. If the agent replied
@@ -1518,7 +1519,7 @@ curl http://127.0.0.1:7331/markdown</pre>
               <p>
                 <code>json</code> writes a readable file on a short debounce.
                 <code>sqlite</code> writes each change immediately through
-                <code>node:sqlite</code> — a real database for zero
+                <code>node:sqlite</code>: a real database for zero
                 dependencies, falling back to json where unavailable.
               </p>
             </div>
@@ -1557,7 +1558,7 @@ curl http://127.0.0.1:7331/markdown</pre>
                 </tr>
                 <tr>
                   <td><code>GET /annotations/wait</code></td>
-                  <td>Long poll — the primitive behind <code>watch</code></td>
+                  <td>Long poll: the primitive behind <code>watch</code></td>
                 </tr>
                 <tr>
                   <td><code>PATCH /annotations/:id</code></td>
@@ -1596,7 +1597,7 @@ curl http://127.0.0.1:7331/markdown</pre>
               <code>0.0.0.0</code>.
             </li>
             <li>
-              CORS is open by design — your dev server lives on an arbitrary
+              CORS is open by design: your dev server lives on an arbitrary
               origin. Any page in your browser can reach a loopback port, so
               pass <code>--token</code> if that matters on your machine.
             </li>
@@ -1605,7 +1606,7 @@ curl http://127.0.0.1:7331/markdown</pre>
               the same origin. Nothing is sent anywhere.
             </li>
             <li>
-              <strong>Webhooks are the exception</strong> — they send page URLs,
+              <strong>Webhooks are the exception</strong>: they send page URLs,
               element text and whatever you typed off the machine. Only
               configure endpoints you control.
             </li>
