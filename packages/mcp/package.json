@@ -1,6 +1,6 @@
 {
   "name": "earmark-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server that lets AI coding agents read, answer and resolve earmark UI annotations.",
   "license": "MIT",
   "author": "nahar-strativ",
@@ -24,7 +24,8 @@
     "./cli": {
       "types": "./types/cli.d.ts",
       "default": "./src/cli.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "earmark-mcp": "./bin/earmark-mcp.js"
@@ -44,7 +45,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "earmark": "0.1.0",
-    "earmark-server": "0.1.0"
+    "earmark": "0.1.1",
+    "earmark-server": "0.1.1"
   }
 }

@@ -876,6 +876,59 @@ convention, so a lowercase function is a helper rather than a component. Anythin
 unnamed inherits whatever it sits inside, which is why an inline arrow assigned to
 `const Inner` is picked up while an anonymous callback is not.
 
+### 4.37 Screenshots: settled as "no" (added 2026-08-18)
+
+Open since the first audit, and now closed by the user: **earmark ships no
+screenshot capability at all.**
+
+The two candidates and why neither is right:
+
+- **`html2canvas` is disqualified on principle, not weight.** It re-renders the
+  DOM into a canvas, so what an agent receives is html2canvas's interpretation of
+  the page rather than what the browser painted. For a tool whose entire promise is
+  "here is what I am looking at", shipping a lookalike is worse than shipping
+  nothing. It also fails on modern CSS and cannot read cross-origin images.
+- **`getDisplayMedia` captures real pixels** and, since the element's exact rect is
+  already known, one frame could be cropped to it with no dependency at all. Honest
+  output, but it costs a permission prompt and a user gesture per session.
+
+The reason to ship neither: **the agent already has a browser.** earmark hands it a
+verified unique selector and a URL, so it can capture that element itself at full
+fidelity, with no permission prompt and no image bytes in the annotation store.
+That is the right division of labour, and it is the argument that settled it:
+earmark is the structural layer, the agent's browser is the visual one.
+
+If it is ever wanted, the ~40 lines of `getDisplayMedia` plus a crop is the version
+to write, behind an opt-in flag. `html2canvas` is not to be added at any price.
+
+### 4.38 Published, and a packaging gap found by installing it (added 2026-08-18)
+
+All six packages are on npm at `0.1.0`, published by the user under the `iknahar`
+account. Verified from the public registry rather than assumed: a fresh project
+installed `earmark`, `vite-plugin-earmark`, `earmark-stamp`, `earmark-mcp` and
+`earmark-server`, the tarball contained exactly the allowlist (`src`, `types`,
+`LICENSE`, `README.md`), and the published Vite plugin stamped both JSX and Svelte
+correctly. Every fix from that day shipped, including the `data-earmark-auto`
+repair from §4.32, which was worth checking specifically: publishing an hour
+earlier would have shipped the broken version.
+
+**Installing it found a gap the dry runs could not.** With an `exports` map
+present, Node blocks any subpath that is not declared, including
+`<pkg>/package.json`, which bundlers and framework detection commonly read:
+
+```
+ERR_PACKAGE_PATH_NOT_EXPORTED: Package subpath './package.json' is not defined
+```
+
+Every package now declares `"./package.json": "./package.json"`, and all six are
+bumped to `0.1.1` with their cross-dependency pins moved in step, since a fresh
+install of `0.1.1` would otherwise pull the `0.1.0` packages underneath it.
+
+`npm pack --dry-run` proved the file list but could never have caught this, because
+the failure only exists once the package is resolved by Node through its exports
+map. The lesson is the same one as §4.32: the only test of a distribution is
+consuming it the way a stranger would.
+
 ### 4.20 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
@@ -958,9 +1011,7 @@ of the change.
       answer → broker
 
 ### Open / not built
-- [ ] **Screenshots.** No element cropping or page capture. Worth adding for
-      vision-capable agents; `html2canvas` is heavy, `getDisplayMedia` needs a
-      user gesture. Undecided.
+- [x] **Screenshots** decided against, deliberately and permanently (§4.37).
 - [x] **Svelte component names** are stamped and the chain is rebuilt (§4.29).
 - [ ] **Turbopack is configured but unverified.** The webpack path was run
       through a real webpack build; the Turbopack rules are written to its
@@ -972,8 +1023,8 @@ of the change.
       (§4.29). There is still no DOM inside a canvas, and there cannot be.
 - [x] **Touch** input and coarse-pointer sizing (§4.35). Small screens are still
       not the target: this is a tool for the machine you develop on.
-- [ ] **Publishing.** Packaging is done and all six names are free (§4.30);
-      `npm run release` is one command away, and is the user's to run.
+- [x] **Published** to npm at `0.1.0`, all six packages (§4.38). `0.1.1` is
+      staged with an `exports` fix and is the user's to publish.
 - [ ] **Screenshot verification of the full landing page.** The browser pane's
       capture only produced a frame at scroll 0 on a 10k-pixel page, so sections
       were verified one at a time by hiding the others. A tooling limit, not a
@@ -1013,7 +1064,8 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
 
 ## 7. Open questions for the user
 
-1. **Screenshots** — worth the dependency weight for vision-model workflows?
+1. ~~**Screenshots**~~ — settled: none, ever (§4.37). The agent's own browser is
+   the visual layer.
 2. ~~**Next.js support**~~ — built (§4.21). Remaining question: is Turbopack or
    webpack the path that matters to you, so the unverified one can be tested
    against a real project?
@@ -1086,6 +1138,13 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   intact, and a real webpack build driven by `withEarmark`'s own rule emits both
   stamps into the bundle. Left open deliberately: screenshots, iframes, mobile,
   publishing, and the Svelte component chain.
+- **2026-08-18** — **Published all six packages to npm** at `0.1.0`, verified by
+  installing them from the public registry (§4.38). That install found a real gap
+  no dry run could: with an `exports` map, `<pkg>/package.json` must be declared or
+  Node blocks it. Fixed and staged as `0.1.1`, cross-dependency pins moved in step.
+- **2026-08-18** — **Screenshots settled as a permanent no** (§4.37): the agent's
+  own browser is the visual layer, and `html2canvas` would ship a re-render rather
+  than what the page actually painted.
 - **2026-08-18** — Renamed the repo `Agentic` → **`earmark`** (§5), which moved
   the Pages site to https://nahar-strativ.github.io/earmark/ and required
   rewriting 51 URLs. Confirmed the spelling first: the request read "earmak".

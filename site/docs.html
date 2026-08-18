@@ -1127,9 +1127,9 @@ Everything checks out.</pre>
             <h2>What it does not do.</h2>
             <ul>
               <li><strong>Touch is supported, small screens are not the target.</strong> Picking, region drags and the panel all work by touch, and the controls grow on a coarse pointer. It remains a tool for the machine you develop on.</li>
-              <li><strong>No screenshots.</strong> Everything is structural: text, selectors, geometry, styles.</li>
+              <li><strong>No screenshots, by decision.</strong> Your agent drives a browser and is handed a verified selector plus a URL, so it can capture the element itself at full fidelity. A bundled library would send a re-render of the page rather than what the browser actually painted.</li>
               <li><strong>Cross-origin iframes stay invisible.</strong> Same-origin frames are pickable (see below). A cross-origin frame is a browser security boundary: <code>contentDocument</code> throws and there is nothing further to try.</li>
-              <li><strong>Nothing is published to npm yet.</strong> The packages are ready and every name is free; the publish command has not been run.</li>
+              <li><strong>Version 0.1.x.</strong> All six packages are on npm; none of this has been through a second pair of hands yet.</li>
               <li><strong>A canvas has no DOM.</strong> earmark reports its coordinate space instead of pretending otherwise.</li>
             </ul>
 

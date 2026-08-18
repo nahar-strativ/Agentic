@@ -443,26 +443,37 @@ error they name stops happening.
 
 ## Not supported
 
-No screenshots. **Cross-origin iframes** stay invisible, because that is a browser
+**No screenshots, by decision rather than omission.** Your agent already drives a
+browser; earmark hands it a verified selector and a URL, so it can capture the
+element itself at full fidelity. Shipping `html2canvas` would send a re-render of
+your page rather than what the browser painted, which is the wrong answer for a
+tool whose promise is "here is what I am looking at".
+
+**Cross-origin iframes** stay invisible, because that is a browser
 security boundary rather than a gap to work around; same-origin frames are
 pickable, and their own HTML and CSS are resolved. A canvas has no DOM, so earmark
 reports its coordinate space rather than pretending otherwise. Touch works, but
 this is still a tool for the machine you develop on. See [plan.md](plan.md) for the
 full open list and the reasoning behind every design decision.
 
-## Publishing
+## Releasing
 
-All six packages are publish-ready: metadata, `LICENSE`, per-package README, and
-an allowlist so only `src`, `types`, `bin` and those two files ship. Check what
-would go out with `npm pack --dry-run` inside any package.
+All six packages are on npm. To cut the next version, bump the versions (keeping
+the cross-package pins in step, or a fresh install pulls the older ones
+underneath) and then:
 
 ```bash
 npm run release
 ```
 
-Runs the suite and the live verification first, then `npm publish --workspaces`,
-which publishes in dependency order. It needs `npm login`, and publishing cannot
-be undone, so it is a command you run rather than one that runs for you.
+That runs the suite and the live verification first, then
+`npm publish --workspaces`, which publishes in dependency order. It needs
+`npm login`, and publishing cannot be undone, so it is a command you run rather
+than one that runs for you.
+
+`npm pack --dry-run` inside any package shows exactly what would ship. It proves
+the file list but not the package: an `exports` map can still block a subpath that
+tools expect, which is only visible once something installs and resolves it.
 
 ---
 

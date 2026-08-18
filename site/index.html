@@ -1910,8 +1910,11 @@ curl http://127.0.0.1:7331/markdown</pre>
               your app on a machine you develop on.
             </li>
             <li>
-              <strong>No screenshots.</strong> Everything is structural: text,
-              selectors, geometry, styles.
+              <strong>No screenshots, on purpose.</strong> Your agent already
+              drives a browser, and it is handed a verified selector and a URL, so
+              it can capture the element itself at full fidelity. A bundled
+              screenshot library would send a re-render of the page rather than
+              what the browser painted.
             </li>
             <li>
               <strong>Cross-origin iframes stay invisible.</strong> Same-origin
@@ -1927,9 +1930,9 @@ curl http://127.0.0.1:7331/markdown</pre>
               renderer.
             </li>
             <li>
-              <strong>Nothing is published to npm yet.</strong> The packages are
-              ready to publish and every name is free; the command has not been
-              run.
+              <strong>Version 0.1.x.</strong> All six packages are on npm and the
+              whole surface is tested, but nothing here has been through a second
+              pair of hands yet.
             </li>
           </ul>
         </div>

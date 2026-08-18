@@ -1,6 +1,6 @@
 {
   "name": "earmark-loader",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "webpack and Turbopack loader that stamps JSX with file:line:col for earmark — the Next.js path to source-accurate annotations.",
   "keywords": [
     "earmark",
@@ -34,7 +34,8 @@
       "import": "./src/next.js",
       "require": "./src/next.cjs",
       "default": "./src/next.cjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "src",
@@ -49,6 +50,6 @@
     "access": "public"
   },
   "dependencies": {
-    "earmark-stamp": "0.1.0"
+    "earmark-stamp": "0.1.1"
   }
 }

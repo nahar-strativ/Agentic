@@ -1,6 +1,6 @@
 {
   "name": "earmark",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Click-to-annotate overlay that gives AI coding agents structured context about your UI.",
   "keywords": [
     "annotation",
@@ -49,7 +49,8 @@
     "./transport": {
       "types": "./types/transport.d.ts",
       "default": "./src/transport.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "src",

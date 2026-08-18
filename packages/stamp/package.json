@@ -1,6 +1,6 @@
 {
   "name": "earmark-stamp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bundler-agnostic source stamping for earmark — adds data-earmark-src file:line:col to JSX and Svelte elements.",
   "keywords": [
     "earmark",
@@ -35,7 +35,8 @@
     "./svelte": {
       "types": "./types/svelte.d.ts",
       "default": "./src/svelte.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "src",
