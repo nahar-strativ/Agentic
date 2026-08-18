@@ -45,8 +45,27 @@ function ok(value, message) {
 }
 
 const workdir = await mkdtemp(join(tmpdir(), 'earmark-verify-'));
-const PORT = 7521;
-const base = `http://127.0.0.1:${PORT}`;
+
+/**
+ * A fresh port for every server this script starts.
+ *
+ * Reusing one port across restarts made Node 20 fail where 22 and 24 passed:
+ * undici keeps connections alive, and after the server on that port was replaced
+ * the pooled socket was dead, so the next request failed instead of reconnecting.
+ * Nothing a real client does, and CI found it on the first run.
+ */
+let port = 7520;
+const nextPort = () => (port += 1);
+
+let PORT = nextPort();
+let base = `http://127.0.0.1:${PORT}`;
+
+/** Point the helpers at a freshly started server. @param {number} p */
+function useServerPort(p) {
+  PORT = p;
+  base = `http://127.0.0.1:${PORT}`;
+  return p;
+}
 
 /** @param {string} path @param {object} [init] */
 const api = (path, init) => fetch(base + path, init);
@@ -81,7 +100,7 @@ const page = {
 // ---------------------------------------------------------------- broker ----
 
 let server = await startEarmarkServer({
-  port: PORT,
+  port: useServerPort(PORT),
   file: join(workdir, 'annotations.json'),
   store: 'json',
   quiet: true,
@@ -189,7 +208,7 @@ await server.close();
 
 await check('storage: json survives a restart', async () => {
   const reopened = await startEarmarkServer({
-    port: PORT,
+    port: useServerPort(nextPort()),
     file: join(workdir, 'annotations.json'),
     store: 'json',
     quiet: true,
@@ -202,7 +221,7 @@ await check('storage: json survives a restart', async () => {
 
 await check('storage: sqlite survives a restart', async () => {
   const file = join(workdir, 'annotations.db');
-  const first = await startEarmarkServer({ port: PORT, file, store: 'sqlite', quiet: true });
+  const first = await startEarmarkServer({ port: useServerPort(nextPort()), file, store: 'sqlite', quiet: true });
   const backend = first.store.backend;
   await api('/annotations', {
     method: 'POST',
@@ -211,7 +230,7 @@ await check('storage: sqlite survives a restart', async () => {
   });
   await first.close();
 
-  const second = await startEarmarkServer({ port: PORT, file, store: 'sqlite', quiet: true });
+  const second = await startEarmarkServer({ port: useServerPort(nextPort()), file, store: 'sqlite', quiet: true });
   const body = await (await api('/annotations')).json();
   await second.close();
   ok(body.annotations.some((a) => a.id === 'sq1'), 'the annotation did not survive');
@@ -219,14 +238,14 @@ await check('storage: sqlite survives a restart', async () => {
 });
 
 await check('storage: memory persists nothing', async () => {
-  const first = await startEarmarkServer({ port: PORT, file: null, store: 'memory', quiet: true });
+  const first = await startEarmarkServer({ port: useServerPort(nextPort()), file: null, store: 'memory', quiet: true });
   await api('/annotations', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sessionId: 'tab-1', page, annotations: [annotation({ id: 'mem1' })] }),
   });
   await first.close();
-  const second = await startEarmarkServer({ port: PORT, file: null, store: 'memory', quiet: true });
+  const second = await startEarmarkServer({ port: useServerPort(nextPort()), file: null, store: 'memory', quiet: true });
   const body = await (await api('/annotations')).json();
   await second.close();
   ok(body.annotations.length === 0, `expected an empty store, got ${body.annotations.length}`);
@@ -237,7 +256,7 @@ await check('storage: memory persists nothing', async () => {
 
 await check('broker: token gate', async () => {
   const guarded = await startEarmarkServer({
-    port: PORT,
+    port: useServerPort(nextPort()),
     file: null,
     store: 'memory',
     token: 's3cret',
@@ -271,7 +290,7 @@ await check('webhooks: delivered, and a hang cannot stall the loop', async () =>
   const hookPort = listener.address().port;
 
   const hooked = await startEarmarkServer({
-    port: PORT,
+    port: useServerPort(nextPort()),
     file: null,
     store: 'memory',
     webhooks: [`http://127.0.0.1:${hookPort}/hang`, `http://127.0.0.1:${hookPort}/hook`],
