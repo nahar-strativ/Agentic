@@ -1126,10 +1126,10 @@ Everything checks out.</pre>
             <div class="eyebrow"><b>18</b> Limits</div>
             <h2>What it does not do.</h2>
             <ul>
-              <li><strong>Desktop browsers only.</strong> There is no touch or mobile mode.</li>
+              <li><strong>Touch is supported, small screens are not the target.</strong> Picking, region drags and the panel all work by touch, and the controls grow on a coarse pointer. It remains a tool for the machine you develop on.</li>
               <li><strong>No screenshots.</strong> Everything is structural: text, selectors, geometry, styles.</li>
               <li><strong>Cross-origin iframes stay invisible.</strong> Same-origin frames are pickable (see below). A cross-origin frame is a browser security boundary: <code>contentDocument</code> throws and there is nothing further to try.</li>
-              <li><strong>Source resolution stops at a frame boundary.</strong> A build-time stamp inside a frame is read normally, but the served HTML and CSS of a framed document are not walked yet.</li>
+              <li><strong>Nothing is published to npm yet.</strong> The packages are ready and every name is free; the publish command has not been run.</li>
               <li><strong>A canvas has no DOM.</strong> earmark reports its coordinate space instead of pretending otherwise.</li>
             </ul>
 
@@ -1150,6 +1150,16 @@ Everything checks out.</pre>
               too, which matters because a preview pane is exactly the thing people
               want to hold still.
             </p>
+            <p>
+              Source resolution follows the frame as well: the frame's own served
+              HTML is walked and its stylesheets are mapped, so a framed annotation
+              reports a file and line inside the frame's document rather than
+              guessing against the parent page.
+            </p>
+            <pre>- **Source:** <span class="v">examples/frames/child.html:19:7</span> _(resolved from the served HTML)_
+- **CSS rules that style it:**
+  - `button` → <span class="v">examples/frames/child.html (inline &lt;style&gt;):9</span>
+  - `button.primary` → <span class="v">examples/frames/child.html (inline &lt;style&gt;):10</span></pre>
 
             <h3>Canvas and WebGL</h3>
             <p>

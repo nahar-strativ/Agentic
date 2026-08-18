@@ -24,7 +24,7 @@ test('stamps intrinsic elements with path, line and column', () => {
   const result = transform(
     ['export function Card() {', '  return <div className="card">hi</div>;', '}'].join('\n'),
   );
-  assert.match(result.code, /<div data-earmark-src="src\/Card\.tsx:2:10" className="card">/);
+  assert.match(result.code, /<div data-earmark-src="src\/Card\.tsx:2:10"[^>]* className="card">/);
 });
 
 test('leaves components alone — the attribute would never reach the DOM', () => {
@@ -37,7 +37,7 @@ test('stamps host elements nested inside components', () => {
     ['export const A = () => (', '  <Layout>', '    <button>Go</button>', '  </Layout>', ');'].join('\n'),
   );
   assert.doesNotMatch(result.code, /<Layout data-earmark-src/);
-  assert.match(result.code, /<button data-earmark-src="src\/Card\.tsx:3:5">/);
+  assert.match(result.code, /<button data-earmark-src="src\/Card\.tsx:3:5"/);
 });
 
 test('skips document-level and metadata tags', () => {
@@ -75,7 +75,7 @@ test('handles TypeScript generics and satisfies without choking', () => {
     'export const A = <T,>(p: T) => <span data-x="1">{String(p)}</span> satisfies unknown;',
   ].join('\n');
   const result = transform(code);
-  assert.match(result.code, /<span data-earmark-src="src\/Card\.tsx:2:32" data-x="1">/);
+  assert.match(result.code, /<span data-earmark-src="src\/Card\.tsx:2:32"[^>]* data-x="1">/);
 });
 
 test('multiple elements on one line get distinct columns', () => {
@@ -105,4 +105,32 @@ test('stamps .svelte markup too — before vite-plugin-svelte compiles it away',
   const result = transform('<button class="go">Go</button>', '/repo/src/lib/Card.svelte');
   assert.match(result.code, /<button data-earmark-src="src\/lib\/Card\.svelte:1:1"[^>]* class="go">/);
   assert.equal(earmark().enforce, 'pre', 'ordering is what makes svelte stamping possible');
+});
+
+test('stamps the component each element is written in, for chains in production builds', () => {
+  const result = transform(
+    ['export function Card() {', '  return <div><button>Go</button></div>;', '}'].join('\n'),
+    '/repo/src/Card.tsx',
+  );
+  assert.equal([...result.code.matchAll(/data-earmark-component="Card"/g)].length, 2);
+});
+
+test('an element inherits the nearest named component, not the file', () => {
+  const result = transform(
+    [
+      'export function Outer() {',
+      '  const Inner = () => <span>inner</span>;',
+      '  return <div><Inner /></div>;',
+      '}',
+    ].join('\n'),
+    '/repo/src/Two.tsx',
+  );
+  assert.match(result.code, /<span data-earmark-src="[^"]*" data-earmark-component="Inner"/);
+  assert.match(result.code, /<div data-earmark-src="[^"]*" data-earmark-component="Outer"/);
+});
+
+test('a lowercase function is a helper, not a component', () => {
+  const result = transform('function helper() { return <div>x</div>; }', '/repo/src/h.jsx');
+  assert.match(result.code, /data-earmark-src=/);
+  assert.doesNotMatch(result.code, /data-earmark-component/);
 });

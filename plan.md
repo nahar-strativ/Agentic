@@ -799,6 +799,83 @@ element, `button.buy` at `styles.css:10` and `.featured button.buy` at
 **The lesson is about verification, not about `currentScript`:** a documented path
 that no example uses is an untested path, however plausible the code reads.
 
+### 4.33 Continuous integration (added 2026-08-18)
+
+`.github/workflows/ci.yml` runs on every push and pull request. Both layers, not
+just the units: `npm test` and `npm run verify`, because §4.25 and §4.32 were both
+bugs that a unit suite passed and an assembled product failed.
+
+Node 20, 22 and 24. Twenty is the floor the packages declare, and running it also
+proves the sqlite adapter's fallback to JSON works, since `node:sqlite` only exists
+from 22.5. A second job packs every workspace with `npm pack --dry-run`, which
+catches a publish that would ship the wrong files or drop the LICENSE without
+publishing anything.
+
+Before this, everything in the repository had been verified by a human running it,
+and nothing re-ran on its own.
+
+### 4.34 Source resolution inside frames (added 2026-08-18)
+
+`sourcemap.js` was written against `document` and `location`, which is why §4.29
+had to skip framed targets rather than resolve them. Every entry point now derives
+its document from the element, so the same walk and the same tag-name verification
+apply to a frame's document.
+
+One bug this could have introduced, avoided by noticing the cache key:
+`loadStylesheetIndex` keyed inline stylesheets by their index in
+`document.styleSheets`. "The first inline `<style>`" exists in the parent page and
+in every frame, so the parent's line numbers would have been served for a framed
+element with total confidence. The key now includes the document URL.
+
+`warmSourceCache()` warms same-origin frame documents too, so committing an
+annotation inside a frame does not wait on a fetch.
+
+Verified live: a button in the demo frame reports
+`examples/frames/child.html:19:7` from the frame's served HTML, plus `button` at
+line 9 and `button.primary` at line 10 of the frame's own inline stylesheet.
+
+### 4.35 Touch (added 2026-08-18)
+
+Touch is adapted into the mouse path rather than replacing it. Pointer Events
+would unify the two, but the mouse path is subtle and verified (capture phase, text
+mode deliberately letting `mousedown` through, shift-click accumulation), and
+rewriting all of it to gain touch would put it all at risk. A touch is instead
+shaped into what the existing handlers already read, with `preventDefault` and
+`stopPropagation` forwarded to the real event.
+
+Three things that would each have broken it:
+
+- **Touch listeners are passive by default**, which makes `preventDefault` a
+  silent no-op and lets the page scroll out from under a region drag. They are
+  registered with `{ passive: false }`.
+- **`touch-action: none`** while picking, or the browser scrolls and zooms under
+  the finger. Text mode is exempt, because native selection is the entire point
+  there.
+- **Hover does not exist on a touchscreen**, so first contact is what shows the
+  user what they are about to pick, and element mode commits on `touchend` rather
+  than waiting for a click event that is not reliably delivered.
+
+Controls grow under `@media (pointer: coarse)`: 44px tools, 30px pins, a
+full-width panel, and 16px inputs, which is the size below which iOS Safari zooms
+the whole page on focus.
+
+Verified in a mobile emulator with real `TouchEvent`s: a tap opens the composer
+and saves an annotation, a drag shows the marquee and produces a region while
+`touchmove` is prevented, and `touch-action` is restored when picking ends.
+
+### 4.36 Component names for JSX too (added 2026-08-18)
+
+The Svelte work in §4.29 added `data-earmark-component`, and JSX now carries it as
+well. React exposes component names on the fiber at runtime, so this is redundant
+in development and *not* redundant in a production build where those names are
+minified away.
+
+The walk carries the component it is descending through, and a name is only taken
+from a capitalised declaration: lowercase means an intrinsic element by React's own
+convention, so a lowercase function is a helper rather than a component. Anything
+unnamed inherits whatever it sits inside, which is why an inline arrow assigned to
+`const Inner` is picked up while an anonymous callback is not.
+
 ### 4.20 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
@@ -862,7 +939,8 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
 - [x] **Svelte** — markup stamping via the Vite plugin, or a preprocessor (§4.21)
 - [x] TypeScript declarations for all six packages, type-checked in CI (§4.22)
 - [x] AlignUI visual system across overlay and landing page (§4.23)
-- [x] 153 tests across fifteen suites, all passing
+- [x] 156 tests across fifteen suites, all passing
+- [x] CI on Node 20, 22 and 24, running the suite and the live check (§4.33)
 - [x] `npm run verify`: 20 assembled features checked live (§4.28)
 - [x] Documentation page and scroll-spy on the site (§4.27)
 - [x] Live browser verification of the whole loop, both directions:
@@ -879,11 +957,11 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
       documented loader subset and have not been executed.
 - [x] **Same-origin iframes** are pickable (§4.29). Cross-origin frames are a
       browser security boundary and stay out of reach.
-- [ ] **Source resolution inside a frame.** Build stamps are read, but the served
-      HTML and CSS of a framed document are not walked yet.
+- [x] **Source resolution inside a frame** (§4.34).
 - [x] **Canvas / WebGL** report their coordinate space rather than an empty area
       (§4.29). There is still no DOM inside a canvas, and there cannot be.
-- [ ] **Mobile / touch.** Desktop only, same limitation the reference product has.
+- [x] **Touch** input and coarse-pointer sizing (§4.35). Small screens are still
+      not the target: this is a tool for the machine you develop on.
 - [ ] **Publishing.** Packaging is done and all six names are free (§4.30);
       `npm run release` is one command away, and is the user's to run.
 - [ ] **Screenshot verification of the full landing page.** The browser pane's
@@ -998,6 +1076,13 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   intact, and a real webpack build driven by `withEarmark`'s own rule emits both
   stamps into the bundle. Left open deliberately: screenshots, iframes, mobile,
   publishing, and the Svelte component chain.
+- **2026-08-18** — Closed four follow-ups: **CI** on three Node versions running
+  both the suite and the live check (§4.33), **source resolution inside frames**
+  (§4.34), **touch** input with coarse-pointer sizing (§4.35), and
+  **component-name stamping for JSX** so chains survive a minified production
+  build (§4.36). One bug avoided on the way: the inline-stylesheet cache key was
+  not document-scoped, which would have served the parent page's line numbers for
+  a framed element. Suite 153 → 156.
 - **2026-08-18** — Built a plain HTML project to answer "how do I test this",
   and found that the **documented no-bundler install had never worked**:
   `document.currentScript` is null in an ES module, so `data-earmark-auto` never

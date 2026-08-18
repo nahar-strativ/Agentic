@@ -222,17 +222,86 @@ export function createPicker(handlers) {
     if (mode === 'element' && hovered) handlers.onHover(hovered);
   }
 
+  /**
+   * Touch input, expressed as the mouse events the rest of this file already
+   * handles.
+   *
+   * Pointer Events would unify the two, but the mouse path here is verified and
+   * subtle (capture phase, text mode letting mousedown through, shift-click
+   * accumulation), and rewriting it to gain touch would put all of that at risk.
+   * A touch is instead adapted into the same shape: the handlers only ever read
+   * `clientX`, `clientY`, `target`, `shiftKey` and `button`, and the two methods
+   * they call are forwarded to the real event so `preventDefault` still suppresses
+   * the host app.
+   *
+   * @param {TouchEvent} e
+   * @param {Touch} touch
+   */
+  const asMouse = (e, touch) => ({
+    clientX: touch.clientX,
+    clientY: touch.clientY,
+    target: e.target,
+    shiftKey: false, // no shift on a touchscreen; multi-select needs its own gesture
+    button: 0,
+    composedPath: () => (typeof e.composedPath === 'function' ? e.composedPath() : []),
+    preventDefault: () => e.preventDefault(),
+    stopPropagation: () => e.stopPropagation(),
+    stopImmediatePropagation: () => e.stopImmediatePropagation?.(),
+  });
+
+  /** @param {TouchEvent} e */
+  function onTouchStart(e) {
+    if (!mode || e.touches.length !== 1) return;
+    const shim = asMouse(e, e.touches[0]);
+    /* Hover has no meaning on a touchscreen, so the first contact is what shows
+       the user what they are about to pick. */
+    if (mode === 'element') onMouseMove(shim);
+    onMouseDown(shim);
+  }
+
+  /** @param {TouchEvent} e */
+  function onTouchMove(e) {
+    if (!mode || e.touches.length !== 1) return;
+    const shim = asMouse(e, e.touches[0]);
+    /* Without this the page scrolls out from under the drag. Text mode is left
+       alone so native selection handles still work. */
+    if (mode !== 'text' && e.cancelable) e.preventDefault();
+    onMouseMove(shim);
+  }
+
+  /** @param {TouchEvent} e */
+  function onTouchEnd(e) {
+    if (!mode) return;
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const shim = asMouse(e, touch);
+    onMouseUp(shim);
+    /* A touch produces no click event of its own that we can rely on across
+       browsers, so element mode is committed here. */
+    if (mode === 'element') onClick(shim);
+  }
+
   const events = /** @type {const} */ ([
     ['mousemove', onMouseMove],
     ['mousedown', onMouseDown],
     ['mouseup', onMouseUp],
     ['click', onClick],
     ['keydown', onKeyDown],
+    ['touchstart', onTouchStart],
+    ['touchmove', onTouchMove],
+    ['touchend', onTouchEnd],
   ]);
 
   /** @param {Document} doc */
   function wire(doc) {
-    for (const [name, fn] of events) doc.addEventListener(name, fn, true);
+    for (const [name, fn] of events) {
+      /* Touch listeners default to passive in most browsers, which silently makes
+         preventDefault a no-op and lets the page scroll during a region drag. */
+      const options = name.startsWith('touch')
+        ? { capture: true, passive: false }
+        : true;
+      doc.addEventListener(name, fn, options);
+    }
     wired.push(doc);
   }
 
@@ -263,6 +332,9 @@ export function createPicker(handlers) {
   function detach() {
     for (const doc of wired) {
       for (const [name, fn] of events) doc.removeEventListener(name, fn, true);
+      for (const [name, fn] of events) {
+        if (name.startsWith('touch')) doc.removeEventListener(name, fn, { capture: true });
+      }
     }
     wired = [];
     window.removeEventListener('scroll', onScroll, true);

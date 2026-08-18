@@ -49,10 +49,12 @@ export const SKIP_TAGS = new Set([
  * @param {string} options.path repo-relative, forward-slashed path to report
  * @param {boolean} [options.typescript] parse TS syntax rather than Flow
  * @param {string} [options.mapSource] `source` field for the generated map
+ * @param {boolean} [options.component] stamp the enclosing component name
+ *   (default true)
  * @returns {StampResult | null} null when nothing was stamped or the file could
  *   not be parsed — callers must treat that as "pass the source through".
  */
-export function stampJsx(code, { path, typescript, mapSource }) {
+export function stampJsx(code, { path, typescript, mapSource, component = true }) {
   if (!code.includes('<')) return null;
 
   let ast;
@@ -76,7 +78,7 @@ export function stampJsx(code, { path, typescript, mapSource }) {
   const magic = new MagicString(code);
   let stamped = 0;
 
-  for (const node of findJsxOpeningElements(ast.program)) {
+  for (const { node, component: owner } of findJsxOpeningElements(ast.program)) {
     const name = node.name;
     if (name?.type !== 'JSXIdentifier') continue; // <Foo.Bar/> and <this.x/> are components
     if (!/^[a-z]/.test(name.name)) continue; // component, not a DOM element
@@ -88,7 +90,11 @@ export function stampJsx(code, { path, typescript, mapSource }) {
     const loc = node.loc?.start;
     if (!loc) continue;
 
-    magic.appendLeft(name.end, ` ${SOURCE_ATTR}="${path}:${loc.line}:${loc.column + 1}"`);
+    const own = component && owner ? ` ${COMPONENT_ATTR}="${owner}"` : '';
+    magic.appendLeft(
+      name.end,
+      ` ${SOURCE_ATTR}="${path}:${loc.line}:${loc.column + 1}"${own}`,
+    );
     stamped += 1;
   }
 
@@ -102,25 +108,63 @@ export function stampJsx(code, { path, typescript, mapSource }) {
 }
 
 /**
- * Depth-first walk of the AST yielding every JSXOpeningElement.
- * Hand-rolled so we do not need @babel/traverse and its ESM interop.
+ * Depth-first walk of the AST yielding every JSXOpeningElement along with the
+ * component it is written in. Hand-rolled so we do not need @babel/traverse and
+ * its ESM interop.
+ *
+ * React exposes component names on the fiber at runtime, so this stamp is
+ * redundant there until a production build minifies them away. For Svelte it is
+ * the only source of a component chain at all, and one attribute meaning the same
+ * thing in both is better than two mechanisms.
  *
  * @param {any} node
- * @returns {Generator<any>}
+ * @param {string | null} [component] the component currently being descended into
+ * @returns {Generator<{node: any, component: string | null}>}
  */
-function* findJsxOpeningElements(node) {
+function* findJsxOpeningElements(node, component = null) {
   if (!node || typeof node !== 'object') return;
 
   if (Array.isArray(node)) {
-    for (const child of node) yield* findJsxOpeningElements(child);
+    for (const child of node) yield* findJsxOpeningElements(child, component);
     return;
   }
 
-  if (node.type === 'JSXOpeningElement') yield node;
+  if (node.type === 'JSXOpeningElement') yield { node, component };
+
+  const owner = componentNameOf(node) || component;
 
   for (const key of Object.keys(node)) {
     if (key === 'loc' || key === 'leadingComments' || key === 'trailingComments') continue;
     const value = node[key];
-    if (value && typeof value === 'object') yield* findJsxOpeningElements(value);
+    if (value && typeof value === 'object') yield* findJsxOpeningElements(value, owner);
+  }
+}
+
+/**
+ * The component name this node declares, if it declares one.
+ *
+ * A capitalised name is the convention React itself enforces: lowercase means an
+ * intrinsic element, so a lowercase function is a helper rather than a component.
+ * Anything unnamed (a default-exported arrow, an inline callback) yields null and
+ * inherits whatever it sits inside.
+ *
+ * @param {any} node
+ * @returns {string | null}
+ */
+function componentNameOf(node) {
+  const named = (name) => (typeof name === 'string' && /^[A-Z]/.test(name) ? name : null);
+
+  switch (node.type) {
+    case 'FunctionDeclaration':
+    case 'ClassDeclaration':
+      return named(node.id?.name);
+    case 'VariableDeclarator':
+      /* `const Card = () => …` and `const Card = memo(() => …)` both land here. */
+      return named(node.id?.name);
+    case 'ClassMethod':
+    case 'ObjectMethod':
+      return null;
+    default:
+      return null;
   }
 }

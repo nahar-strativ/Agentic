@@ -1,0 +1,69 @@
+# Runs the suite on every push and pull request.
+#
+# Everything in this repository has been verified by a human running it, and
+# nothing re-ran on its own. That is how a documented install path stayed broken
+# for a week (see plan.md 4.32), so both layers run here: the unit suite, and the
+# live check that drives real servers and a real MCP process.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 is the floor the packages declare. 22.5 is where node:sqlite lands,
+        # so 20 also proves the sqlite adapter's fallback to JSON actually works.
+        node: ['20', '22', '24']
+    name: node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Unit suite
+        run: npm test
+
+      - name: Live feature verification
+        run: npm run verify
+
+  package:
+    runs-on: ubuntu-latest
+    name: packaging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # Catches a publish that would ship the wrong files, or miss the LICENSE,
+      # without publishing anything.
+      - name: Pack every workspace
+        run: |
+          for dir in packages/*/; do
+            echo "--- $dir"
+            (cd "$dir" && npm pack --dry-run)
+          done

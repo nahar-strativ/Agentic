@@ -451,11 +451,13 @@ export function createOverlay(config) {
     await Promise.all(
       annotation.targets.map(async (target) => {
         if (!target.selector) return;
-        /* Resolution reads *this* document and its stylesheets. Running a framed
-           selector here could match an unrelated element in the parent page and
-           report a confidently wrong line, which is worse than reporting none. */
-        if (target.frame) return;
-        const el = safeQuery(target.selector);
+        /* Resolution follows the element's own document, so a framed target is
+           resolved against the frame's HTML and stylesheets. The selector must
+           still be run in the right document: against the parent it could match
+           something unrelated and report a confidently wrong line. */
+        const frame = frameFor(target);
+        if (target.frame && !frame) return; // the frame is gone; claim nothing
+        const el = frame ? safeQueryIn(frame.doc, target.selector) : safeQuery(target.selector);
         if (!el) return;
 
         const { html, css } = await resolveStaticSource(el);
@@ -818,8 +820,16 @@ export function createOverlay(config) {
 
   /** @param {string} selector */
   function safeQuery(selector) {
+    return safeQueryIn(document, selector);
+  }
+
+  /**
+   * @param {Document} doc
+   * @param {string} selector
+   */
+  function safeQueryIn(doc, selector) {
     try {
-      return document.querySelector(selector);
+      return doc.querySelector(selector);
     } catch {
       return null;
     }

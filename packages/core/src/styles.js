@@ -591,6 +591,66 @@ export const OVERLAY_CSS = /* css */ `
   transition: opacity 160ms, transform 160ms;
 }
 .toast[data-show="true"] { opacity: 1; transform: translateY(0); }
+
+/* Touch and pen. A 32px control is comfortable with a cursor and a miss with a
+   fingertip, so the controls grow and the panel stops assuming a desktop width. */
+@media (pointer: coarse) {
+  .toolbar {
+    right: 12px;
+    bottom: 12px;
+    padding: 6px;
+    gap: 4px;
+  }
+
+  .tool {
+    width: 44px;
+    height: 44px;
+  }
+
+  .tool svg { width: 20px; height: 20px; }
+
+  .count {
+    min-width: 24px;
+    height: 24px;
+    font-size: 12px;
+    line-height: 24px;
+  }
+
+  .pin {
+    width: 30px;
+    height: 30px;
+    margin: -15px 0 0 -15px;
+    font-size: 14px;
+    line-height: 30px;
+  }
+
+  .panel {
+    right: 12px;
+    left: 12px;
+    bottom: 72px;
+    width: auto;
+    max-height: min(72vh, 620px);
+  }
+
+  .popover {
+    width: min(340px, calc(100vw - 24px));
+    padding: 14px;
+  }
+
+  .popover textarea { min-height: 84px; font-size: 16px; }
+
+  /* 16px keeps iOS Safari from zooming the whole page when the field is focused. */
+  .reply-form input { font-size: 16px; }
+
+  .btn,
+  .priority {
+    padding: 9px 14px;
+    font-size: 13px;
+  }
+
+  .item { padding: 12px; }
+  .item-del { padding: 4px 8px; font-size: 18px; }
+}
 `;
 
 /**
@@ -603,6 +663,18 @@ html[data-earmark-picking] * {
 }
 html[data-earmark-picking="text"] * {
   cursor: text !important;
+}
+/* On a touchscreen the browser would scroll, zoom or long-press-select under the
+   finger while picking. Text mode is exempt: native selection is the point there. */
+html[data-earmark-picking="element"],
+html[data-earmark-picking="region"] {
+  touch-action: none;
+}
+html[data-earmark-picking="element"] *,
+html[data-earmark-picking="region"] * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 html[data-earmark-frozen] *,
 html[data-earmark-frozen] *::before,

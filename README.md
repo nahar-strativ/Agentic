@@ -443,11 +443,11 @@ error they name stops happening.
 
 ## Not supported
 
-Desktop browsers only, and no screenshots. **Cross-origin iframes** stay
-invisible, because that is a browser security boundary rather than a gap to work
-around; same-origin frames are pickable. Source resolution does not yet walk the
-served HTML and CSS *inside* a frame. A canvas has no DOM, so earmark reports its
-coordinate space rather than pretending otherwise. See [plan.md](plan.md) for the
+No screenshots. **Cross-origin iframes** stay invisible, because that is a browser
+security boundary rather than a gap to work around; same-origin frames are
+pickable, and their own HTML and CSS are resolved. A canvas has no DOM, so earmark
+reports its coordinate space rather than pretending otherwise. Touch works, but
+this is still a tool for the machine you develop on. See [plan.md](plan.md) for the
 full open list and the reasoning behind every design decision.
 
 ## Publishing

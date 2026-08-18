@@ -54,6 +54,16 @@ export function clearSourceCache() {
 export function warmSourceCache() {
   try {
     loadDocument(location.href);
+    /* Same-origin frames are annotated too, so their documents are worth having
+       in cache before the user commits an annotation inside one. */
+    for (const frame of Array.from(document.querySelectorAll('iframe'))) {
+      try {
+        const url = documentUrl(frame.contentDocument);
+        if (url) loadDocument(url);
+      } catch {
+        /* cross-origin: not ours to read */
+      }
+    }
   } catch {
     /* nothing to warm */
   }
@@ -183,7 +193,8 @@ function elementPath(el) {
   const path = [];
   let node = el;
 
-  while (node && node !== document.documentElement) {
+  const root = el.ownerDocument?.documentElement;
+  while (node && node !== root) {
     const parent = node.parentElement;
     if (!parent) return null;
     path.unshift({
@@ -230,7 +241,12 @@ export async function resolveHtmlSource(el) {
   const path = elementPath(el);
   if (!path) return null;
 
-  const doc = await loadDocument(location.href);
+  /* The element's own document, which for a framed element is the frame's. Same
+     walk, same tag-name verification, different file. */
+  const url = documentUrl(el.ownerDocument);
+  if (!url) return null;
+
+  const doc = await loadDocument(url);
   if (!doc) return null;
 
   let node = doc.tree.children.find((child) => child.tag === 'html');
@@ -253,7 +269,22 @@ export async function resolveHtmlSource(el) {
   }
 
   const { line, column } = doc.at(node.offset);
-  return { source: relativeUrl(location.href), line, column };
+  return { source: relativeUrl(url), line, column };
+}
+
+/**
+ * The URL of a document, or null when it cannot be read. A frame that has
+ * navigated cross-origin throws here, which is the correct place to stop.
+ *
+ * @param {Document | null | undefined} doc
+ * @returns {string | null}
+ */
+function documentUrl(doc) {
+  try {
+    return doc?.location?.href || null;
+  } catch {
+    return null;
+  }
 }
 
 // ------------------------------------------------------------------- CSS ----
@@ -333,8 +364,13 @@ export function indexStylesheet(text, lineOffset = 0) {
  * @param {CSSStyleSheet} sheet
  * @returns {Promise<Map<string, number[]> | null>}
  */
-function loadStylesheetIndex(sheet) {
-  const key = sheet.href || `inline:${sheet.ownerNode?.getAttribute?.('data-earmark-sheet') || indexOfSheet(sheet)}`;
+function loadStylesheetIndex(sheet, doc = document) {
+  /* The key carries the document, because "the first inline <style>" exists in the
+     parent page and in every frame, and they are different files. */
+  const scope = documentUrl(doc) || 'top';
+  const key =
+    sheet.href ||
+    `inline:${scope}#${sheet.ownerNode?.getAttribute?.('data-earmark-sheet') || indexOfSheet(sheet, doc)}`;
   if (stylesheetCache.has(key)) return stylesheetCache.get(key);
 
   /** @type {Promise<Map<string, number[]> | null>} */
@@ -344,7 +380,7 @@ function loadStylesheetIndex(sheet) {
     // An inline <style>: its lines are offset by wherever the tag sits in the
     // HTML file, so annotations point into index.html, not into a phantom file.
     const text = sheet.ownerNode.textContent;
-    promise = loadDocument(location.href)
+    promise = loadDocument(documentUrl(doc) || '')
       .then((doc) => {
         let offset = 0;
         if (doc) {
@@ -369,8 +405,8 @@ function loadStylesheetIndex(sheet) {
 }
 
 /** @param {CSSStyleSheet} sheet */
-function indexOfSheet(sheet) {
-  return Array.prototype.indexOf.call(document.styleSheets, sheet);
+function indexOfSheet(sheet, doc = document) {
+  return Array.prototype.indexOf.call(doc.styleSheets, sheet);
 }
 
 /**
@@ -403,7 +439,11 @@ export async function resolveCssRules(el) {
   /** @type {any[]} */
   const matches = [];
 
-  for (const sheet of Array.from(document.styleSheets)) {
+  /* A framed element is styled by the frame's stylesheets, not the parent's. */
+  const doc = el.ownerDocument || document;
+  const docHref = documentUrl(doc);
+
+  for (const sheet of Array.from(doc.styleSheets)) {
     // Never report our own overlay styles back to the user.
     if (sheet.ownerNode?.id === 'earmark-host-css') continue;
 
@@ -416,8 +456,10 @@ export async function resolveCssRules(el) {
     }
     if (!rules) continue;
 
-    const file = sheet.href ? relativeUrl(sheet.href) : `${relativeUrl(location.href)} (inline <style>)`;
-    const index = await loadStylesheetIndex(sheet);
+    const file = sheet.href
+      ? relativeUrl(sheet.href)
+      : `${relativeUrl(docHref || '')} (inline <style>)`;
+    const index = await loadStylesheetIndex(sheet, doc);
     /** @type {Map<string, number>} */
     const consumed = new Map();
 
