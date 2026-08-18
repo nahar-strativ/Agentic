@@ -4,6 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>earmark: point at it, your agent finds the code</title>
+    <meta property="og:title" content="earmark: point at it, your agent finds the code" />
+    <meta
+      property="og:description"
+      content="Click an element in your running app, say what should change, and your coding agent gets the selector, the source file and line, the component path and the computed styles."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://nahar-strativ.github.io/Agentic/" />
+    <meta property="og:site_name" content="earmark" />
+    <!-- summary, not summary_large_image: the page ships no image, and claiming
+         a card size we cannot fill renders as a broken preview. -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="theme-color" content="#f7f7f7" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20d%3D%22M4%209a5%205%200%200%201%205-5h14l5%205v14a5%205%200%200%201-5%205H9a5%205%200%200%201-5-5Z%22%20fill%3D%22%23fa7319%22%2F%3E%3Cpath%20d%3D%22M23%204l5%205h-5Z%22%20fill%3D%22%23ffffff%22%20fill-opacity%3D%22.92%22%2F%3E%3C%2Fsvg%3E" />
     <meta
       name="description"
@@ -98,6 +110,9 @@
           0 1px 1px -0.5px rgba(14, 18, 27, 0.03),
           0 0 0 1px rgba(14, 18, 27, 0.06);
 
+        /* Height the sticky masthead occupies, so anchored sections clear it. */
+        --bar: 96px;
+
         --measure: 70ch;
         --gutter: 24px;
         --page: 1120px;
@@ -159,6 +174,53 @@
       *::before,
       *::after {
         box-sizing: border-box;
+      }
+
+      html {
+        /* Clicking a nav link used to drop the section's label and heading
+           behind the sticky masthead. */
+        scroll-padding-top: var(--bar);
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        html { scroll-behavior: smooth; }
+      }
+
+      [id] { scroll-margin-top: var(--bar); }
+
+      ::selection {
+        background: var(--mark-soft);
+        color: var(--fg);
+      }
+
+      /* Keyboard users got no visible focus at all before this. */
+      :focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+        border-radius: 6px;
+      }
+
+      /* Reachable by keyboard, invisible until focused. */
+      .skip {
+        position: absolute;
+        left: 50%;
+        top: 8px;
+        transform: translate(-50%, -200%);
+        z-index: 30;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: var(--fg);
+        color: var(--ground);
+        font: 500 0.8125rem/1.4 var(--sans);
+        text-decoration: none;
+        transition: transform 140ms;
+      }
+      /* Plain :focus, not :focus-visible. A skip link is only ever reached by
+         keyboard, and :focus-visible does not match a programmatic focus(),
+         which is exactly how a page script or a test would move to it. */
+      .skip:focus {
+        transform: translate(-50%, 0);
+        color: var(--ground);
       }
 
       body {
@@ -287,9 +349,28 @@
         margin: 0;
       }
 
-      @media (max-width: 560px) {
-        .masthead { flex-wrap: wrap; }
-        .masthead nav { margin-left: 0; width: 100%; }
+      /* Narrow screens: keep the sticky bar to a single row. The section links
+         scroll sideways instead of wrapping, so nothing is dropped, and the
+         version chip goes because it is the only thing here that is decoration. */
+      @media (max-width: 620px) {
+        .masthead { gap: 8px; padding-right: 6px; }
+        .masthead .tag { display: none; }
+        .masthead nav {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          scrollbar-width: none;
+          -webkit-overflow-scrolling: touch;
+        }
+        .masthead nav::-webkit-scrollbar { display: none; }
+        .masthead nav a { white-space: nowrap; }
+        /* The action must not scroll out of reach with the section links, so it
+           sticks to the right edge of the strip and the links pass under it. */
+        .masthead nav a.is-primary {
+          position: sticky;
+          right: 0;
+          margin-left: 4px;
+          box-shadow: -8px 0 8px 0 var(--surface);
+        }
       }
 
       /* ---------- shared type ---------- */
@@ -307,6 +388,7 @@
         font-size: clamp(2.5rem, 6.2vw, 4.25rem);
         line-height: 1.04;
         letter-spacing: -0.032em;
+        text-wrap: balance;
       }
 
       h1 em {
@@ -318,6 +400,7 @@
         font-size: clamp(1.625rem, 3vw, 2.25rem);
         line-height: 1.2;
         letter-spacing: -0.022em;
+        text-wrap: balance;
       }
 
       h3 {
@@ -333,7 +416,7 @@
         letter-spacing: -0.011em;
       }
 
-      p { margin: 0; max-width: var(--measure); }
+      p { margin: 0; max-width: var(--measure); text-wrap: pretty; }
 
       .lede {
         font-size: 1.125rem;
@@ -923,6 +1006,7 @@
 
   <body>
     <div class="sheet">
+      <a class="skip" href="#why">Skip to content</a>
       <header class="masthead">
         <span class="wordmark"><span class="dot"></span>earmark</span>
         <span class="tag">v0.1</span>

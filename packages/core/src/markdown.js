@@ -54,15 +54,21 @@ function targetLines(target) {
     return lines;
   }
 
-  lines.push(`- **Element:** \`<${target.tag}>\` ${target.label}`);
+  const tag = target.tag ? `\`<${target.tag}>\` ` : '';
+  lines.push(`- **Element:** ${tag}${target.label}`);
   lines.push(`- **Selector:** \`${target.selector}\``);
 
   if (target.source) {
-    const qualifier = target.sourceExact
-      ? target.sourceFrom === 'html'
-        ? ' _(resolved from the served HTML)_'
-        : ''
-      : ' _(nearest stamped ancestor)_';
+    // `sourceExact: false` is a claim the overlay makes deliberately. Absent is
+    // not the same as false, and guessing "nearest stamped ancestor" for an
+    // annotation that never said either way puts a fabricated caveat in front of
+    // the agent.
+    const qualifier =
+      target.sourceExact === false
+        ? ' _(nearest stamped ancestor)_'
+        : target.sourceExact && target.sourceFrom === 'html'
+          ? ' _(resolved from the served HTML)_'
+          : '';
     lines.push(`- **Source:** \`${target.source}\`${qualifier}`);
   }
 
@@ -85,7 +91,8 @@ function targetLines(target) {
   }
   if (target.testId) lines.push(`- **Test id:** \`${target.testId}\``);
 
-  lines.push(`- **Box:** ${boxOf(target.rect)}`);
+  const box = boxOf(target.rect);
+  if (box) lines.push(`- **Box:** ${box}`);
 
   const styles = styleLine(target.styles);
   if (styles) lines.push(`- **Computed:** ${styles}`);
@@ -172,9 +179,11 @@ export function batchToMarkdown(annotations, page, options = {}) {
 
   if (page) {
     out.push(`- **Page:** ${page.url}`);
-    out.push(
-      `- **Viewport:** ${page.viewport.width}×${page.viewport.height} @${page.devicePixelRatio}x, ${page.colorScheme} mode`,
-    );
+    if (page.viewport) {
+      out.push(
+        `- **Viewport:** ${page.viewport.width}×${page.viewport.height} @${page.devicePixelRatio}x, ${page.colorScheme} mode`,
+      );
+    }
     if (page.framework && page.framework !== 'unknown') {
       out.push(`- **Framework:** ${page.framework}`);
     }

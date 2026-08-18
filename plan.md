@@ -532,6 +532,65 @@ the page elsewhere and has no business being served. Pages is set to the
 The page works at a subpath because it has no external references and every link
 is a fragment.
 
+### 4.25 A bug the tests could not see (added 2026-08-18)
+
+Asked whether the MCP server actually works, so it was driven live rather than
+re-asserted: a real `earmark-mcp` process, real JSON-RPC over stdio, a
+browser-shaped HTTP push, then `list` / `acknowledge` / `resolve` / `status`.
+
+The loop worked. The **markdown rendering did not**:
+`earmark_list_annotations` returned
+`earmark: Cannot read properties of undefined (reading 'width')` instead of the
+agent's work list, while `format: 'json'` returned the same annotation perfectly.
+
+Cause: `batchToMarkdown` read `page.viewport.width` unguarded. The overlay always
+sends `viewport` and `rect`, so all 122 tests passed. But the broker accepts
+annotations over plain HTTP from curl, another editor or a script (§4.5 documents
+exactly that use), and one absent optional field took out the primary tool an
+agent uses.
+
+**The shape of the fix is the lesson: a missing optional field may cost a line of
+output, never the whole report.** Also fixed in the same pass, both visible in the
+live output once the crash was gone:
+
+- A target with no `tag` printed `` `<undefined>` ``.
+- An *absent* `sourceExact` was treated as `false`, so the output claimed
+  `_(nearest stamped ancestor)_` about a path that had never made any such claim.
+  Absent is not false, and a fabricated caveat in front of an agent is worse than
+  silence.
+
+`test/markdown.test.mjs` now feeds the serializer the payloads the overlay would
+never produce. Suite 122 → 130.
+
+### 4.26 Landing page: the things a screenshot does not show (added 2026-08-18)
+
+Six fixes after auditing the deployed page rather than admiring it.
+
+- **Anchored sections were hidden behind the sticky masthead.** Clicking `Source`
+  in the nav put the section's label and heading *behind* the bar, measured at
+  78px of the section lost. `scroll-padding-top` on the root plus
+  `scroll-margin-top` on every `[id]`, from one `--bar` token.
+- **No visible focus anywhere.** A keyboard user had nothing to follow. Added a
+  `:focus-visible` ring and a skip link.
+- **The skip link uses `:focus`, not `:focus-visible`.** It is only ever reached
+  by keyboard, and `:focus-visible` does not match a programmatic `focus()`.
+- **The sticky bar took two rows on a phone.** Now one: the section links scroll
+  sideways, the version chip (the only decoration in there) is dropped, and the
+  GitHub action is `position: sticky; right: 0` so it cannot scroll out of reach
+  while the links pass under it.
+- **No social or theme metadata** on a page that is now public. Added og:* and
+  `theme-color`. Deliberately `twitter:card: summary`, not
+  `summary_large_image`: the page ships no image, and claiming a card size we
+  cannot fill renders as a broken preview.
+- Typographic polish: `text-wrap: balance` on headings, `pretty` on paragraphs,
+  and a selection colour in the marking ink.
+
+Three of these were only findable by measuring, and two measurements lied first.
+Programmatic scrolling never advances while the browser pane is hidden, because
+smooth scrolling needs animation frames; and `:focus` matches nothing there, since
+a hidden pane holds no document focus, even though `document.activeElement` is
+correctly set. Both were tooling artefacts read as page bugs until checked.
+
 ### 4.20 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
@@ -595,7 +654,7 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
 - [x] **Svelte** — markup stamping via the Vite plugin, or a preprocessor (§4.21)
 - [x] TypeScript declarations for all six packages, type-checked in CI (§4.22)
 - [x] AlignUI visual system across overlay and landing page (§4.23)
-- [x] 122 tests across eleven suites, all passing
+- [x] 130 tests across twelve suites, all passing
 - [x] Live browser verification of the whole loop, both directions:
       click → broker → markdown, and agent question → SSE → amber pin → human
       answer → broker
@@ -729,6 +788,15 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   intact, and a real webpack build driven by `withEarmark`'s own rule emits both
   stamps into the bundle. Left open deliberately: screenshots, iframes, mobile,
   publishing, and the Svelte component chain.
+- **2026-08-18** — Verified the MCP server live instead of re-reading the tests,
+  and found a real bug the suite could not see: markdown rendering crashed on any
+  annotation missing `page.viewport`, so the agent's main tool returned an error
+  string while the JSON format worked (§4.25). Fixed with two related honesty
+  bugs in the same output. Suite 122 → 130.
+- **2026-08-18** — Landing page audit and six fixes (§4.26): anchored sections
+  were hidden behind the sticky bar, there was no visible focus anywhere, the bar
+  took two rows on a phone with the action unreachable, and the public page had
+  no social metadata.
 - **2026-08-18** — Landing page: em dashes removed from the copy, favicon added
   as an inline encoded SVG, and the page deployed to **GitHub Pages** at
   https://nahar-strativ.github.io/Agentic/ (§4.24). One bug found and fixed: an
