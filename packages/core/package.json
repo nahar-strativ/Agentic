@@ -5,16 +5,36 @@
   "type": "module",
   "main": "./src/index.js",
   "module": "./src/index.js",
+  "types": "./types/index.d.ts",
   "exports": {
-    ".": "./src/index.js",
-    "./markdown": "./src/markdown.js",
-    "./extract": "./src/extract.js",
-    "./selector": "./src/selector.js",
-    "./sourcemap": "./src/sourcemap.js",
-    "./transport": "./src/transport.js"
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./markdown": {
+      "types": "./types/markdown.d.ts",
+      "default": "./src/markdown.js"
+    },
+    "./extract": {
+      "types": "./types/extract.d.ts",
+      "default": "./src/extract.js"
+    },
+    "./selector": {
+      "types": "./types/selector.d.ts",
+      "default": "./src/selector.js"
+    },
+    "./sourcemap": {
+      "types": "./types/sourcemap.d.ts",
+      "default": "./src/sourcemap.js"
+    },
+    "./transport": {
+      "types": "./types/transport.d.ts",
+      "default": "./src/transport.js"
+    }
   },
   "files": [
-    "src"
+    "src",
+    "types"
   ],
   "sideEffects": false,
   "keywords": [

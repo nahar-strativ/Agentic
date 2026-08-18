@@ -4,3 +4,6 @@ node_modules/
 .DS_Store
 dist/
 site/fragment.html
+
+# Scraped design reference — third-party assets, never committed
+Design Reference/

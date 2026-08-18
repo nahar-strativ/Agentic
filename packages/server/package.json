@@ -4,17 +4,28 @@
   "description": "Local dev server that brokers earmark annotations between the browser overlay and AI agents.",
   "type": "module",
   "main": "./src/index.js",
+  "types": "./types/index.d.ts",
   "exports": {
-    ".": "./src/index.js",
-    "./store": "./src/store.js",
-    "./http": "./src/http.js"
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./store": {
+      "types": "./types/store.d.ts",
+      "default": "./src/store.js"
+    },
+    "./http": {
+      "types": "./types/http.d.ts",
+      "default": "./src/http.js"
+    }
   },
   "bin": {
     "earmark-server": "./bin/earmark-server.js"
   },
   "files": [
     "src",
-    "bin"
+    "bin",
+    "types"
   ],
   "dependencies": {
     "earmark": "0.1.0"

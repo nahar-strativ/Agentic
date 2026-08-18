@@ -100,3 +100,9 @@ test('injects the overlay bootstrap into index.html', () => {
 test('injection can be turned off', () => {
   assert.equal(earmark({ inject: false }).transformIndexHtml(), undefined);
 });
+
+test('stamps .svelte markup too — before vite-plugin-svelte compiles it away', () => {
+  const result = transform('<button class="go">Go</button>', '/repo/src/lib/Card.svelte');
+  assert.match(result.code, /<button data-earmark-src="src\/lib\/Card\.svelte:1:1" class="go">/);
+  assert.equal(earmark().enforce, 'pre', 'ordering is what makes svelte stamping possible');
+});

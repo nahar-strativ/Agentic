@@ -1,0 +1,15 @@
+{
+  "//": "Checks the hand-written .d.ts files against test/types/check.ts. There is no build step — this compiles nothing (`noEmit`) and is never shipped.",
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "target": "esnext",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "skipLibCheck": false,
+    "noUnusedLocals": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["test/types/**/*.ts", "packages/*/types/**/*.d.ts"]
+}

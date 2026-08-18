@@ -73,6 +73,21 @@ createEarmark({
 The endpoint defaults to the local broker and **degrades silently** when nothing
 is listening — the overlay still works, the sync dot just goes grey.
 
+### TypeScript
+
+Every package ships hand-written declarations — there is no build step here, and
+an emitted `.d.ts` would need one. The domain types (`Annotation`, `Target`,
+`Session`, `Status`, `Priority`) live in `earmark` and are re-exported by
+`earmark-server` and `earmark-mcp`, so an annotation is the same type on both
+sides of the wire.
+
+```ts
+import { createEarmark, type Annotation } from 'earmark';
+
+const overlay = createEarmark({ theme: 'dark' });
+const pending: Annotation[] = overlay.annotations;
+```
+
 ---
 
 ## Using it
@@ -230,6 +245,78 @@ earmark({
 Without the plugin everything still works — you get selectors, component names
 and text, just not `file:line`. You can also add `data-earmark-src` by hand.
 
+### Next.js
+
+Next compiles with SWC, so a Babel plugin would silently switch the whole project
+off SWC and slow every build down. `earmark-loader` is a pre-loader instead — it
+sees the source you wrote and leaves the rest of the pipeline alone. It covers
+both webpack and Turbopack:
+
+```js
+// next.config.mjs
+import { withEarmark } from 'earmark-loader/next';
+
+export default withEarmark({
+  // your config
+});
+```
+
+```js
+withEarmark(config, {
+  applyInBuild: true,   // stamp production builds too (off by default)
+  root: process.cwd(),  // project root for the reported paths
+  exclude: 'legacy/',   // regexp source string
+})
+```
+
+Both compilations are stamped, client **and** server. That is deliberate: Next
+renders your components on the server, and React hydration will not add an
+attribute the server HTML did not have — stamping one side only means the
+attribute goes missing until something re-renders, with a hydration mismatch on
+the way.
+
+The wrapper does not mount the overlay for you. Next has no `index.html` to
+inject into, so add it once in a client component:
+
+```jsx
+'use client';
+import { useEffect } from 'react';
+
+export function Earmark() {
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+    import('earmark').then(({ createEarmark }) => createEarmark());
+  }, []);
+  return null;
+}
+```
+
+### Svelte
+
+Vite users — including SvelteKit — get `.svelte` stamping from
+`vite-plugin-earmark` with no extra configuration. Every plain element in the
+markup is stamped before the Svelte compiler sees it:
+
+```svelte
+<button data-earmark-src="src/lib/Card.svelte:12:3" class="go">Go</button>
+```
+
+Components, `<svelte:*>`, `<slot>`, comments, `{expressions}` and the contents of
+`<script>`/`<style>` are left alone — a stamp in the wrong place there would not
+produce a wrong line number, it would produce a file that does not compile.
+
+For a Svelte build that is not Vite, use the preprocessor:
+
+```js
+// svelte.config.js
+import { earmarkPreprocess } from 'earmark-stamp';
+
+export default { preprocess: [earmarkPreprocess()] };
+```
+
+Svelte still has no runtime hook for component names, so stamping is the whole
+story there — but CSS rule mapping (below) works regardless.
+
 ### Plain HTML and CSS — no build step
 
 A static site has no build to stamp, so earmark resolves the source at
@@ -324,17 +411,28 @@ This is a development tool.
 npm test
 ```
 
-Seven suites, 88 tests: store and HTTP behaviour, the MCP surface driven by a
+Eleven suites, 122 tests: store and HTTP behaviour, the MCP surface driven by a
 real stdio client, the overlay's sync client, both persistence backends, webhook
-delivery, the `init`/`doctor` CLI, and the source resolvers.
+delivery, the `init`/`doctor` CLI, the source resolvers, JSX and Svelte stamping,
+the webpack/Turbopack loader, and a type-level check of the published
+declarations.
+
+```bash
+npm run types
+```
+
+Type-checks `test/types/check.ts` against the hand-written `.d.ts` files. The
+`@ts-expect-error` lines in it are assertions too — they fail the build if the
+error they name stops happening.
 
 ---
 
 ## Not supported
 
 Desktop browsers only. No iframes, no canvas/WebGL internals, no screenshots.
-See [plan.md](plan.md) for the full open list and the reasoning behind every
-design decision.
+Svelte component *names* are still unavailable (there is no runtime hook) — you
+get the file and line instead. See [plan.md](plan.md) for the full open list and
+the reasoning behind every design decision.
 
 ---
 

@@ -51,7 +51,9 @@ Consequences of "framework-agnostic vanilla":
 packages/core          earmark              browser overlay (no deps, no build step)
 packages/server        earmark-server       HTTP + SSE broker, json/sqlite store, webhooks
 packages/mcp           earmark-mcp          MCP stdio server (embeds the broker)
-packages/vite-plugin   vite-plugin-earmark  stamps JSX with file:line:col
+packages/stamp         earmark-stamp        the source-stamping transform, no bundler attached
+packages/vite-plugin   vite-plugin-earmark  Vite plugin — JSX and Svelte
+packages/webpack-loader earmark-loader      webpack / Turbopack loader + withEarmark (Next.js)
 examples/vanilla       demo page + static server
 site/                  landing page and guide (one self-contained file)
 test/                  node --test suites
@@ -85,6 +87,10 @@ browser click
 | `server/src/persistence.js` | json / sqlite / memory adapters behind one interface. |
 | `server/src/webhooks.js` | Fire-and-forget delivery of annotation events to external services. |
 | `mcp/src/cli.js` | `init` (register in `.mcp.json`) and `doctor` (diagnose the chain). |
+| `stamp/src/jsx.js` | JSX stamping. Was the Vite plugin's body; now shared. |
+| `stamp/src/svelte.js` | Svelte markup scanner. Skips anything that only *looks* like markup. |
+| `webpack-loader/src/loader.cjs` | CJS loader that async-imports the ESM transform. |
+| `webpack-loader/src/next.cjs` | `withEarmark` — webpack + Turbopack rules, both compilations. |
 
 ---
 
@@ -364,6 +370,133 @@ three source-resolution tiers, the eleven MCP tools, sessions, the broker
 routes, storage and webhooks, the security posture, and a plainly-stated limits
 section.
 
+### 4.21 Stamping everywhere, not just Vite (added 2026-08-18)
+
+The framework-agnostic claim had a hole: only Vite users got `file:line`. Next.js
+and Svelte users got selectors and CSS mapping and nothing else — and Next is
+where most React work actually happens.
+
+The transform moved out of the Vite plugin into **`earmark-stamp`**, which knows
+nothing about bundlers. Three integrations call it, so a stamp means the same
+thing everywhere; a stamp that differs between two bundlers is an agent reading a
+wrong line, which is worse than no line at all.
+
+**Next.js: a loader, not a Babel plugin.** Next compiles with SWC. Adding a Babel
+plugin silently switches the whole project off SWC and slows every build down, so
+`earmark-loader` is a webpack **pre-loader** instead — it sees the source the
+developer wrote and leaves the rest of the pipeline alone. `withEarmark()` wires
+both webpack and Turbopack.
+
+Three constraints that shaped it:
+
+- **Both compilations get stamped, server and client.** Skipping the server pass
+  looks harmless — the overlay is a browser thing — but Next renders components
+  on the server and React hydration will not add an attribute the server HTML did
+  not have. One-sided stamping means the attribute is missing until something
+  re-renders, with a hydration mismatch on the way.
+- **The loader is CommonJS and asynchronous.** webpack and Turbopack `require()`
+  loaders, and Turbopack supports only a subset of the loader API, but the
+  transform is ESM. A CJS loader that takes `this.async()` and dynamic-imports the
+  ESM module satisfies both.
+- **Turbopack loader options must be JSON-serialisable**, so `include`/`exclude`
+  accept regexp *strings* as well as `RegExp`.
+
+**Svelte: a scanner, before the compiler.** Svelte has no runtime hook for
+component names, so stamping is the only source of truth. `vite-plugin-earmark`
+now also handles `.svelte` — `enforce: 'pre'` is what makes that possible, since
+the markup has to be stamped before `vite-plugin-svelte` compiles it away.
+SvelteKit therefore needs no extra configuration; non-Vite Svelte builds get
+`earmarkPreprocess()`.
+
+The scanner is deliberately not a parser. It only has to be right about four
+things — `<script>`/`<style>` blocks, comments, `{...}` expressions, and where an
+opening tag ends — and it leaves alone everything it is unsure about, because a
+misplaced stamp in Svelte does not produce a wrong line number, it produces a file
+that will not compile. The cases that forced that shape:
+
+- **`{a<b}` reads as an opening tag** named `b`. Brace depth is tracked and
+  nothing inside an expression is ever stamped.
+- **`Map<string, number>` in a `<script lang="ts">` block** reads as a tag too,
+  and `.a > .b` in `<style>` would end a tag early. Both blocks are skipped whole.
+- `>` inside a quoted attribute or a `{}` expression does not end the tag.
+- Components, `<svelte:*>`, `<slot>` and metadata tags are never stamped —
+  attributes there either never reach the DOM or have no element to land on.
+
+Verified against the real toolchains rather than only unit tests: Svelte 5's
+compiler compiles the stamped fixture and all five stamps survive into the
+generated code, and a real webpack build run through `withEarmark`'s own rule
+emits both stamps into the bundle.
+
+### 4.22 TypeScript declarations (added 2026-08-18)
+
+Every package now ships hand-written `.d.ts` files. **Hand-written, not emitted:**
+the source is JSDoc-typed JavaScript with no build step, and generating
+declarations would add one — which is the thing this project keeps refusing to do.
+
+The domain types (`Annotation`, `Target`, `Session`, `Status`, `Priority`) live in
+`earmark` and are re-exported by `earmark-server` and `earmark-mcp`, so an
+annotation is the same type on both sides of the wire.
+
+`earmark-mcp` describes the SDK's `Server` structurally instead of importing its
+type. The runtime already uses the low-level API to avoid coupling to the SDK's
+zod version (§8); importing the type here would put that coupling straight back.
+
+A declaration nobody checks is worse than none, because it is believed. So
+`test/types/check.ts` imports every package's public surface and asserts both
+directions — what must type, and via `@ts-expect-error` what must not — and
+`npm test` runs `tsc` over it. It skips cleanly when typescript is not installed.
+
+### 4.23 Visual system: AlignUI (added 2026-08-18)
+
+The user supplied a design reference (a scrape of alignui.com) and asked for both
+surfaces to look like it: the overlay first, then the landing page. This replaces
+the direction recorded in §4.19 — that section stays as written, because the
+reasoning for the old direction is still worth having.
+
+What the reference actually is, reduced to a system: a light neutral ground with
+white surfaces, hairline strokes, **one** blue primary, semantic status colours,
+layered shadows that close on a `0 0 0 1px` ring, generous radii (8–20px),
+Inter-with-negative-tracking type against a mono, 12px `.04em` uppercase eyebrow
+labels, and a blueprint ruler frame down the page edges.
+
+Reimplemented as our own tokens. Nothing is copied — no stylesheet, no font file,
+no asset, no mark — which matters more here than usual given the clean-room
+position in §5. The scrape itself is `.gitignore`d: it is third-party material and
+has no business in a public MIT repository.
+
+Two decisions inside the adoption:
+
+- **Orange survives as the marking ink.** earmark's accent was `#f97316`;
+  AlignUI's `orange-500` is `#fa7319`. They are the same colour, so the marking
+  gesture — highlight, marquee, open pin, the turned-down corner in the logo —
+  stays orange, while blue takes over *action*: primary buttons, the active tool,
+  and the `acknowledged` state, which has meant "an agent picked this up" since
+  §4.12. Nothing that encoded state was recoloured to suit a palette.
+- **Fonts are still not fetched.** The reference serves Inter and Geist Mono as
+  woff2. We put them first in the stack and fall back to the system face, because
+  §4.19's reason has not changed: the CSP on embedding targets blocks font CDNs,
+  and the overlay must never wait on a network request to render.
+
+**The landing page is white on every machine (2026-08-18).** Asked for directly
+after the restyle: the page no longer follows `prefers-color-scheme`, so a
+dark-mode OS gets the same white page as everyone else. The dark token set is
+still there and still complete, but it is now opt-in behind
+`data-theme="dark"` on the root element rather than automatic. This narrows what
+§4.19 claimed — both themes are still designed, but only one is reachable without
+asking. The **overlay** is unchanged: it still follows the host's colour scheme,
+because `theme: 'auto' | 'light' | 'dark'` is a documented option the app author
+sets, not a page we control.
+
+The overlay kept every class name and `data-*` attribute — `overlay.js` styles
+itself entirely through them, so this was a token-and-rule change, not a rewrite.
+The landing page kept all of its content and markup, with the stylesheet replaced
+and the masthead turned into AlignUI's floating pill (logo chip, version tag, and
+a dark primary action). The legacy token names the inline flow diagram references
+(`--ink`, `--rule`, `--surface`, …) are kept as aliases onto the new ones.
+
+Verified in the browser in both themes: the composer, panel, pins and toolbar on
+the demo page, and the landing page top to bottom.
+
 ### 4.20 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
@@ -422,7 +555,12 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
 - [x] Priority: high / normal / low, sorted for the agent (§4.18)
 - [x] Vite plugin: JSX source stamping + auto-inject
 - [x] **No-build source resolution for plain HTML/CSS pages** (§4.13)
-- [x] 88 tests across seven suites, all passing
+- [x] Shared stamping transform, `earmark-stamp` (§4.21)
+- [x] **Next.js** — webpack/Turbopack pre-loader + `withEarmark` (§4.21)
+- [x] **Svelte** — markup stamping via the Vite plugin, or a preprocessor (§4.21)
+- [x] TypeScript declarations for all six packages, type-checked in CI (§4.22)
+- [x] AlignUI visual system across overlay and landing page (§4.23)
+- [x] 122 tests across eleven suites, all passing
 - [x] Live browser verification of the whole loop, both directions:
       click → broker → markdown, and agent question → SSE → amber pin → human
       answer → broker
@@ -431,18 +569,23 @@ the project name differ deliberately — `Agentic` is the account's umbrella rep
 - [ ] **Screenshots.** No element cropping or page capture. Worth adding for
       vision-capable agents; `html2canvas` is heavy, `getDisplayMedia` needs a
       user gesture. Undecided.
-- [ ] **Next.js / Turbopack source stamping.** Only Vite has a plugin. Next
-      users get selectors but no `file:line` unless they add the attribute by
-      hand or run a Babel pass.
-- [ ] **Svelte component names.** No reliable runtime hook; relies entirely on
-      build-time stamping, which we do not do for `.svelte` files yet. Note that
-      Svelte pages still get CSS rule mapping via §4.13.
+- [ ] **Svelte component names.** Files and lines are stamped now (§4.21), but
+      there is still no runtime hook for the *component chain*, so a Svelte
+      annotation carries `Card.svelte:12:3` and no `App › Dashboard › Card`.
+- [ ] **Turbopack is configured but unverified.** The webpack path was run
+      through a real webpack build; the Turbopack rules are written to its
+      documented loader subset and have not been executed.
 - [ ] **iframes.** The overlay only sees its own document.
 - [ ] **Canvas / WebGL apps.** Nothing to annotate — region mode reports an
       empty area.
 - [ ] **Mobile / touch.** Desktop only, same limitation the reference product has.
-- [ ] **TypeScript declarations.** Source is JSDoc-typed JS; no `.d.ts` emitted.
-- [ ] **Publishing.** Nothing is on npm; everything runs from source.
+- [ ] **Publishing.** Nothing is on npm; everything runs from source. The two
+      new package names (`earmark-stamp`, `earmark-loader`) have **not** been
+      checked for availability — the original four were, in §5.
+- [ ] **Screenshot verification of the full landing page.** The browser pane's
+      capture only produced a frame at scroll 0 on a 10k-pixel page, so sections
+      were verified one at a time by hiding the others. A tooling limit, not a
+      page defect: the DOM and computed styles read correctly throughout.
 
 ### Feature audit against the reference product (2026-08-17)
 
@@ -479,10 +622,14 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
 ## 7. Open questions for the user
 
 1. **Screenshots** — worth the dependency weight for vision-model workflows?
-2. **Next.js support** — is that the primary target? If so the Turbopack/Babel
-   stamping path moves up the list.
+2. ~~**Next.js support**~~ — built (§4.21). Remaining question: is Turbopack or
+   webpack the path that matters to you, so the unverified one can be tested
+   against a real project?
 3. **Distribution** — publish to npm, keep internal to Strativ, or vendor into a
-   specific project? All four names are still free.
+   specific project? The original four names were free when checked; the two new
+   ones still need checking.
+4. **Component chain for Svelte** — worth a compile-time pass that records the
+   component name alongside the file, or is `file:line` enough?
 
 ---
 
@@ -495,6 +642,11 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
 - MCP spec / SDK: `@modelcontextprotocol/sdk` (low-level `Server` API used, so no
   zod version coupling)
 - React 19 removed `_debugSource` — the reason `vite-plugin-earmark` exists
+- Visual system reference: alignui.com, supplied by the user as a local scrape in
+  `Design Reference/`. **`.gitignore`d** — third-party assets, never committed;
+  see §4.23 for what was taken (the system) and what was not (anything of theirs)
+- Turbopack custom loaders support only a subset of the webpack loader API — the
+  reason `earmark-loader` is CommonJS and asynchronous
 
 ---
 
@@ -531,3 +683,21 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
 - **2026-08-17** — Landing page and full guide at `site/index.html` (§4.19),
   also published as a Claude artifact:
   https://claude.ai/code/artifact/5405c93a-60c6-46b4-b557-5a80bd28fc07
+- **2026-08-18** — Closed the three pending items that needed no product
+  decision: **Next.js** and **Svelte** source stamping on a shared
+  `earmark-stamp` transform (§4.21), and hand-written **TypeScript
+  declarations** for all six packages with a type-level test (§4.22). Suite
+  88 → 122 tests across eleven suites. Verified against the real toolchains, not
+  only unit tests: Svelte 5 compiles the stamped fixture with all five stamps
+  intact, and a real webpack build driven by `withEarmark`'s own rule emits both
+  stamps into the bundle. Left open deliberately: screenshots, iframes, mobile,
+  publishing, and the Svelte component chain.
+- **2026-08-18** — Landing page pinned to white: auto-dark removed, dark kept as
+  an explicit `data-theme` opt-in (§4.23). The overlay's `theme` option is
+  untouched.
+- **2026-08-18** — Restyled both surfaces onto the **AlignUI** visual system at
+  the user's request, from a design reference they supplied (§4.23). The overlay
+  keeps every class name and `data-*` attribute; the landing page keeps all of
+  its content. Orange stays the marking ink, blue takes over action, and the
+  scraped reference is `.gitignore`d rather than committed. §4.19 is left in
+  place as the record of the direction it replaced.

@@ -1,21 +1,25 @@
 {
   "name": "vite-plugin-earmark",
   "version": "0.1.0",
-  "description": "Stamps JSX elements with their source file, line and column so earmark annotations point straight at the code.",
+  "description": "Stamps JSX and Svelte elements with their source file, line and column so earmark annotations point straight at the code.",
   "type": "module",
   "main": "./src/index.js",
+  "types": "./types/index.d.ts",
   "exports": {
-    ".": "./src/index.js"
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.js"
+    }
   },
   "files": [
-    "src"
+    "src",
+    "types"
   ],
   "peerDependencies": {
     "vite": ">=4"
   },
   "dependencies": {
-    "@babel/parser": "^7.24.0",
-    "magic-string": "^0.30.0"
+    "earmark-stamp": "0.1.0"
   },
   "license": "MIT"
 }
