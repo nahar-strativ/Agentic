@@ -497,6 +497,41 @@ a dark primary action). The legacy token names the inline flow diagram reference
 Verified in the browser in both themes: the composer, panel, pins and toolbar on
 the demo page, and the landing page top to bottom.
 
+### 4.24 Landing page details (added 2026-08-18)
+
+**No em dashes.** Asked for directly. Every one in the page became a colon, a
+comma or a full stop, chosen per sentence rather than swapped blindly. Two
+knock-on edits, because a page that contradicts the product is worse than a page
+with an em dash in it:
+
+- The `doctor` sample on the page reproduces real output, so `cli.js` now prints
+  `responding on URL (1 annotations, 2 sessions)` and the page matches. No test
+  asserted the old wording.
+- A CSS comment described the step markup as `<b>Title</b><span> - text</span>`,
+  which is no longer what the markup says.
+
+**Favicon.** The logo mark: an orange square with the corner turned down, which
+is both what "earmark" means (§5) and what the pins look like. Inlined as an SVG
+data URI so the page keeps its one-self-contained-file promise and makes zero
+external requests.
+
+Encoding it was a real bug worth recording: the first version left the SVG's
+double quotes raw, so the `href` attribute ended at the first quote inside it. The
+icon value was silently truncated *and* the rest of the tag spilled into the
+document, rendering `" />` as text at the top of the page. Percent-encoding the
+whole SVG fixes it. It looked fine in the HTML source and in a `querySelector`
+check — only loading the href as an image, and reading the page's first visible
+text, caught it.
+
+**Deployed to GitHub Pages** at https://nahar-strativ.github.io/Agentic/ via
+`.github/workflows/pages.yml`, triggered on any push touching `site/`. Only
+`site/index.html` is published; `build-fragment.js` is a local tool for embedding
+the page elsewhere and has no business being served. Pages is set to the
+`workflow` build type, so nothing is committed to a `gh-pages` branch.
+
+The page works at a subpath because it has no external references and every link
+is a fragment.
+
 ### 4.20 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
@@ -636,6 +671,8 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
 ## 8. References
 
 - **Our repo:** https://github.com/nahar-strativ/Agentic (public, account `nahar-strativ`)
+- **Live landing page:** https://nahar-strativ.github.io/Agentic/ (GitHub Pages,
+  published from `site/index.html` by `.github/workflows/pages.yml`)
 - Reference product: https://www.agentation.com/
 - Their repo (PolyForm Shield 1.0.0, do **not** copy): https://github.com/benjitaylor/agentation
 - Their MCP package: https://www.npmjs.com/package/agentation-mcp
@@ -692,6 +729,10 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   intact, and a real webpack build driven by `withEarmark`'s own rule emits both
   stamps into the bundle. Left open deliberately: screenshots, iframes, mobile,
   publishing, and the Svelte component chain.
+- **2026-08-18** — Landing page: em dashes removed from the copy, favicon added
+  as an inline encoded SVG, and the page deployed to **GitHub Pages** at
+  https://nahar-strativ.github.io/Agentic/ (§4.24). One bug found and fixed: an
+  unencoded data URI truncated the favicon and leaked `" />` into the page.
 - **2026-08-18** — Landing page pinned to white: auto-dark removed, dark kept as
   an explicit `data-theme` opt-in (§4.23). The overlay's `theme` option is
   untouched.
