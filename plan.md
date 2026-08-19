@@ -1024,6 +1024,45 @@ and documented the static-server caching trap (`-c-1`), which cost a real debugg
 cycle: an unchanged module URL is cached hard, so editing anything under
 `node_modules` leaves the browser running code that is no longer on disk.
 
+### 4.42 Turbopack verified (added 2026-08-18)
+
+The last unexecuted claim. `withEarmark()` configured Turbopack from the start, but
+the rules had only ever been written against its documented loader subset, never
+run.
+
+Scaffolded a real Next app to check it: **Next 16.3.1, React 19.2.8**, App Router,
+TypeScript, with the packages installed from local paths. Both commands, since Next
+16 makes Turbopack the only bundler unless `--webpack` is passed.
+
+It works, and exactly as designed:
+
+| stamp | element | component |
+| --- | --- | --- |
+| `app/page.tsx:5:5` | `<main>` | `Home` |
+| `app/page.tsx:6:7` | `<h1>` | `Home` |
+| `app/page.tsx:8:7` | `<button>` | `Home` |
+| `app/card.tsx:3:5` | `<section>` | `Card` |
+| `app/card.tsx:4:7` | `<h2>` | `Card` |
+| `app/card.tsx:5:7` | `<button>` | `Card` |
+
+Every position is exact, `<Card />` on line 7 is correctly not stamped, and the
+component names resolve per file rather than per page. The stamps appear in the
+prerendered HTML from `next build`, in the dev server's server-rendered HTML, and in
+the client DOM, **with no hydration warning** — which is the specific thing §4.21
+stamped both compilations to avoid, now demonstrated rather than argued.
+
+Two notes worth keeping:
+
+- **`applyInBuild: true` is what makes this verifiable without a long-running dev
+  server.** A production build stamps, so the check is a build plus a grep.
+- **The `--turbo` flag is obsolete.** It was opt-in before Next 15.3, the default
+  from 15.3, and from Next 16 there is no flag: Turbopack is the bundler. The
+  comment in `next.cjs` and the docs said `next dev --turbo`, which would have read
+  as stale advice to anyone on a current Next.
+
+Nothing needed fixing in the loader itself. The CommonJS-plus-async-import shape
+from §4.21, chosen so both bundlers could load an ESM transform, held.
+
 ### 4.20 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
@@ -1108,9 +1147,7 @@ of the change.
 ### Open / not built
 - [x] **Screenshots** decided against, deliberately and permanently (§4.37).
 - [x] **Svelte component names** are stamped and the chain is rebuilt (§4.29).
-- [ ] **Turbopack is configured but unverified.** The webpack path was run
-      through a real webpack build; the Turbopack rules are written to its
-      documented loader subset and have not been executed.
+- [x] **Turbopack verified** against Next 16.3, dev and build (§4.42).
 - [x] **Same-origin iframes** are pickable (§4.29). Cross-origin frames are a
       browser security boundary and stay out of reach.
 - [x] **Open shadow roots** are picked into and reported with a reaching
@@ -1235,6 +1272,10 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   intact, and a real webpack build driven by `withEarmark`'s own rule emits both
   stamps into the bundle. Left open deliberately: screenshots, iframes, mobile,
   publishing, and the Svelte component chain.
+- **2026-08-18** — **Turbopack verified** against a real Next 16.3 app, in both
+  `next dev` and `next build` (§4.42): exact stamps, correct component names, no
+  hydration warning, and `<Card />` correctly untouched. Nothing in the loader
+  needed changing. Corrected the `--turbo` guidance, which is obsolete from Next 16.
 - **2026-08-18** — Found the **type declarations stale** for everything added that
   day, and the type test green regardless, because a field nobody references cannot
   fail to type-check (§4.41). Declared and exercised all of it. Documented the

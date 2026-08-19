@@ -52,7 +52,9 @@ function withEarmark(nextConfig = {}, options = {}) {
   return {
     ...nextConfig,
 
-    // Turbopack (`next dev --turbo`, and the default from Next 15.3 on).
+    // Turbopack. Opt-in via `--turbo` on older Next, the default from 15.3, and
+    // the only bundler unless you pass `--webpack` from Next 16. Verified against
+    // Next 16.3 in both `next dev` and `next build`.
     turbopack: {
       ...(nextConfig.turbopack || {}),
       rules: {

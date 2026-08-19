@@ -17,6 +17,10 @@ your components on the server, and React hydration will not add an attribute the
 server HTML did not have, so a one-sided stamp means a missing attribute and a
 hydration mismatch.
 
+Verified against Next 16.3 in both `next dev` and `next build`, where Turbopack is
+the only bundler unless you pass `--webpack`. Stamps land in the server-rendered
+HTML and in the client DOM, with no hydration warning.
+
 Dev only unless you ask otherwise:
 
 ```js
