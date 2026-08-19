@@ -471,10 +471,30 @@ full open list and the reasoning behind every design decision.
 
 All six packages are on npm. To cut the next version, bump the versions (keeping
 the cross-package pins in step, or a fresh install pulls the older ones
-underneath) and then:
+underneath) and then, **from the repository root**:
 
 ```bash
 npm run release
+```
+
+The script lives in the root `package.json` only. Run it inside
+`packages/<name>` and npm looks for a `release` script in that workspace and
+reports `Missing script: "release"`.
+
+It is also not safely re-runnable: `npm publish --workspaces` has no way to skip a
+version that is already up, so a second run always fails on the first
+already-published package. That error says nothing about whether the first run
+worked, so check the registry rather than the exit code:
+
+```bash
+npm view earmark version
+```
+
+If a run dies partway through, say on an OTP timeout, publish only what is missing
+rather than re-running the script:
+
+```bash
+cd packages/mcp && npm publish --access public
 ```
 
 That runs the suite and the live verification first, then
