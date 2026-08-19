@@ -9,6 +9,13 @@ export interface StampResult {
 
 export const SOURCE_ATTR: 'data-earmark-src';
 
+/**
+ * The component an element is written in. Only a build-time stamper can know this
+ * for Svelte, and for JSX it is what survives a production build that minifies
+ * component names away.
+ */
+export const COMPONENT_ATTR: 'data-earmark-component';
+
 /** Tags that cannot usefully carry the attribute (html, head, script, …). */
 export const SKIP_TAGS: Set<string>;
 
@@ -18,5 +25,11 @@ export const SKIP_TAGS: Set<string>;
  */
 export function stampJsx(
   code: string,
-  options: { path: string; typescript?: boolean; mapSource?: string },
+  options: {
+    path: string;
+    typescript?: boolean;
+    mapSource?: string;
+    /** Also stamp the enclosing component's name. Default true. */
+    component?: boolean;
+  },
 ): StampResult | null;

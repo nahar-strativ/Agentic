@@ -994,6 +994,36 @@ button rather than the bordered pill with a chevron. Both pages now carry the sa
 chrome and the same ruler frame, and `test/site.test.mjs` pins it, since this is the
 second time the two pages have quietly diverged.
 
+### 4.41 The type declarations had drifted (added 2026-08-18)
+
+Checked what was still pending and found the type declarations stale: `shadow`,
+`container`, `COMPONENT_ATTR` and `stampedComponents` were absent entirely, and
+`extractElement` was still typed as taking one argument.
+
+**The type test did not catch it, which is the interesting part.** §4.22 added
+`test/types/check.ts` precisely so declarations could not drift, and it passed the
+whole time, because a field nobody references cannot fail to type-check. A test
+that only exercises the old surface proves the old surface.
+
+Now declared and exercised: `CanvasInfo`, `FrameInfo`, `ShadowInfo`,
+`RegionContainer`, the `point` and `frame` options on `extractElement`, the frame
+argument to `rectOf`, the `component` option on both stampers, `COMPONENT_ATTR` and
+`stampedComponents`. Two new `@ts-expect-error` assertions pin the shapes that must
+stay wrong: a region target has no canvas of its own, and `hosts` is a chain rather
+than one string.
+
+Writing the check found a second thing: an unimported name makes the value `any`,
+which silently disarms every assertion about it, including the `@ts-expect-error`
+ones. The unused-directive error is what exposed it.
+
+The rule this leaves: **when a field is added, the type test grows with it, or the
+declarations are unverified again.**
+
+Also linked the shadow probe from the frames demo, named both demos in the README,
+and documented the static-server caching trap (`-c-1`), which cost a real debugging
+cycle: an unchanged module URL is cached hard, so editing anything under
+`node_modules` leaves the browser running code that is no longer on disk.
+
 ### 4.20 Security posture
 - Broker binds `127.0.0.1` only.
 - CORS is wide open **by design** — the overlay runs on an arbitrary dev origin.
@@ -1205,6 +1235,10 @@ Their MCP tool surface, for reference: `list_sessions`, `get_session`,
   intact, and a real webpack build driven by `withEarmark`'s own rule emits both
   stamps into the bundle. Left open deliberately: screenshots, iframes, mobile,
   publishing, and the Svelte component chain.
+- **2026-08-18** — Found the **type declarations stale** for everything added that
+  day, and the type test green regardless, because a field nobody references cannot
+  fail to type-check (§4.41). Declared and exercised all of it. Documented the
+  static-server caching trap and linked both demos.
 - **2026-08-18** — Auditing the "what it does not do" list found a gap that was
   not on it: a click inside an **open shadow root** was reported as the host
   element, so a button in a web component annotated the whole component. Fixed by

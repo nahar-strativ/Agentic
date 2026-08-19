@@ -5,7 +5,7 @@
 import type { StampResult } from './jsx.js';
 
 export type { StampResult };
-export { stampJsx, SOURCE_ATTR, SKIP_TAGS } from './jsx.js';
+export { stampJsx, SOURCE_ATTR, COMPONENT_ATTR, SKIP_TAGS } from './jsx.js';
 export { stampSvelte } from './svelte.js';
 
 /** Extensions `stamp()` handles: /\.(jsx|tsx|svelte)$/ */

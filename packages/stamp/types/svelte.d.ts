@@ -7,5 +7,14 @@ import type { StampResult } from './jsx.js';
  */
 export function stampSvelte(
   code: string,
-  options: { path: string; mapSource?: string },
+  options: {
+    path: string;
+    mapSource?: string;
+    /**
+     * Also stamp the component name, taken from the filename. Default true. This is
+     * the only source of a Svelte component chain, since Svelte exposes no runtime
+     * equivalent of a React fiber.
+     */
+    component?: boolean;
+  },
 ): StampResult | null;

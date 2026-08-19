@@ -781,6 +781,19 @@
               <code>data-theme</code> on the same tag to configure it.
             </p>
 
+            <h3>Serving a plain project</h3>
+            <p>
+              The script tag path needs the page served from the project root, so
+              that <code>/node_modules/</code> resolves. Any static server does:
+            </p>
+            <pre>npx http-server -p 5200 -c-1</pre>
+            <p>
+              <code>-c-1</code> disables caching, and it matters more than it looks.
+              A module URL that does not change is cached hard, so after editing
+              anything under <code>node_modules</code> the browser keeps running the
+              old copy and you debug code that is no longer on disk.
+            </p>
+
             <h3>The two ways to use it</h3>
             <ul>
               <li>

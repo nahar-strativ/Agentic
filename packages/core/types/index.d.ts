@@ -69,6 +69,69 @@ export interface ElementTarget {
   ancestors: AncestorSummary[];
   /** Rules that style the element, resolved with no build step (§4.13). */
   cssRules?: CssRuleMatch[];
+  /** Present on a `<canvas>`: the coordinate space its drawing code works in. */
+  canvas?: CanvasInfo;
+  /** Present when the element lives in a same-origin iframe. */
+  frame?: FrameInfo;
+  /** Present when the element lives inside one or more open shadow roots. */
+  shadow?: ShadowInfo;
+}
+
+/**
+ * A canvas has no DOM inside it and no source line. What is actionable is the
+ * buffer its drawing code addresses, which is often a different size from the CSS
+ * box; that ratio is where hit-testing bugs live.
+ */
+export interface CanvasInfo {
+  /** The drawing buffer, which is what canvas code uses. */
+  buffer: { width: number; height: number };
+  /** The CSS box, which is what the user pointed at. */
+  css: { width: number; height: number };
+  /** Buffer pixels per CSS pixel. Not always devicePixelRatio. */
+  scale: { x: number; y: number };
+  devicePixelRatio: number;
+  /** The context already bound to the canvas, never one this created. */
+  context: string | null;
+  /** A renderer detected from globals the page had already loaded. */
+  library: string | null;
+  /** The clicked point, in buffer pixels. */
+  point?: { x: number; y: number };
+  /** A dragged region, in buffer pixels. */
+  region?: { x: number; y: number; width: number; height: number };
+}
+
+/**
+ * A selector is only unique within one document, so a framed target has to say
+ * which document to run it in.
+ */
+export interface FrameInfo {
+  /** How to reach the iframe from the top document. */
+  selector: string;
+  name: string | null;
+  url: string | null;
+  title: string | null;
+}
+
+/**
+ * No CSS selector crosses a shadow boundary, so the selector alone cannot reach
+ * the element. `expression` is what can.
+ */
+export interface ShadowInfo {
+  /** Host chain, outermost first. */
+  hosts: string[];
+  mode: 'open' | 'closed' | null;
+  /** e.g. `document.querySelector('my-card').shadowRoot.querySelector('button')` */
+  expression: string;
+}
+
+/** What an empty region was drawn on top of. */
+export interface RegionContainer {
+  label: string;
+  tag: string;
+  selector: string;
+  source: string | null;
+  rect: Rect;
+  canvas?: CanvasInfo;
 }
 
 /** A stylesheet rule the element matches, mapped back to where it is declared. */
@@ -88,8 +151,13 @@ export interface RegionTarget {
   rect: Rect;
   framework: Framework;
   elements: Array<{ label: string; selector: string; source: string | null; rect: Rect }>;
-  /** True when a drag caught nothing — a canvas, or empty space. */
+  /** True when a drag caught nothing: a canvas, or empty space. */
   emptyRegion: boolean;
+  /**
+   * Set when `emptyRegion` is true: the element the region was drawn over, so an
+   * empty drag still says where it happened.
+   */
+  container?: RegionContainer;
 }
 
 export type Target = ElementTarget | RegionTarget;
@@ -188,7 +256,15 @@ export function batchToMarkdown(
 ): string;
 export function annotationToMarkdown(annotation: Annotation, index?: number): string;
 
-export function extractElement(el: Element): ElementTarget;
+export function extractElement(
+  el: Element,
+  options?: {
+    /** The viewport point clicked. Only meaningful for a canvas. */
+    point?: { x: number; y: number } | null;
+    /** The same-origin iframe this element lives in, if any. */
+    frame?: { el: HTMLIFrameElement; doc: Document } | null;
+  },
+): ElementTarget;
 export function extractSelection(selection: Selection | null): ElementTarget | null;
 export function extractRegion(region: { x: number; y: number; width: number; height: number }): RegionTarget;
 export function pageContext(): PageContext;
@@ -205,6 +281,16 @@ export function inspectElement(el: Element): {
 export function detectFramework(): Framework;
 
 export const SOURCE_ATTR: 'data-earmark-src';
+
+/** The component an element was written in, stamped at build time. */
+export const COMPONENT_ATTR: 'data-earmark-component';
+
+/**
+ * Component chain rebuilt from build-time stamps, outermost first. For Svelte this
+ * is the only way a chain can exist; for JSX it is what survives a minified
+ * production build.
+ */
+export function stampedComponents(el: Element): string[];
 
 declare global {
   interface Window {

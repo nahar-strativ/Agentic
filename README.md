@@ -26,6 +26,12 @@ npm install && npm run example
 Open http://127.0.0.1:5173/examples/vanilla/, click the arrow in the toolbar
 (bottom right) or press `alt+a`, then click anything on the page.
 
+Two more demos cover the awkward cases:
+[examples/frames/](examples/frames/) has a same-origin iframe and a canvas whose
+drawing buffer is deliberately twice its CSS box, and
+[examples/frames/shadow.html](examples/frames/shadow.html) is a web component with
+an open shadow root.
+
 The landing page and the full documentation are served alongside it at
 http://127.0.0.1:5173/site/ and http://127.0.0.1:5173/site/docs.html. Both are
 live at https://nahar-strativ.github.io/earmark/ and each is a single

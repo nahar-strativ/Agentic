@@ -12,9 +12,12 @@
 import {
   createEarmark,
   getEarmark,
+  stampedComponents,
+  COMPONENT_ATTR,
   batchToMarkdown,
   annotationToMarkdown,
   extractElement,
+  extractRegion,
   pageContext,
   uniqueSelector,
   detectFramework,
@@ -25,10 +28,14 @@ import {
   type Status,
   type Priority,
   type Session,
+  type CanvasInfo,
+  type FrameInfo,
+  type ShadowInfo,
+  type RegionContainer,
 } from 'earmark';
 import { createTransport, type SyncState } from 'earmark/transport';
 import { resolveStaticSource } from 'earmark/sourcemap';
-import { labelFor } from 'earmark/extract';
+import { labelFor, rectOf } from 'earmark/extract';
 import {
   createStore,
   createHttpServer,
@@ -92,6 +99,33 @@ const wrongPriority: Priority = 'urgent';
 // @ts-expect-error a region target has no selector to hand an agent
 const regionSelector: string = extractElement(el).kind === 'region' ? '' : uniqueSelector(el);
 
+// The fields added for canvas, frames and shadow DOM.
+const canvasTarget = extractElement(el, { point: { x: 10, y: 20 } });
+const canvasInfo: CanvasInfo | undefined = canvasTarget.canvas;
+const bufferPixel: number | undefined = canvasInfo?.point?.x;
+const bufferSize: string = `${canvasInfo?.buffer.width ?? 0}x${canvasInfo?.buffer.height ?? 0}`;
+const contextKind: string | null | undefined = canvasInfo?.context;
+
+declare const iframeEl: HTMLIFrameElement;
+const framedTarget = extractElement(el, { frame: { el: iframeEl, doc: document } });
+const frameInfo: FrameInfo | undefined = framedTarget.frame;
+const frameSelector: string | undefined = frameInfo?.selector;
+
+const shadowInfo: ShadowInfo | undefined = canvasTarget.shadow;
+const reach: string | undefined = shadowInfo?.expression;
+const hostChain: string[] | undefined = shadowInfo?.hosts;
+
+const regionTarget = extractRegion({ x: 0, y: 0, width: 10, height: 10 });
+const drawnOn: RegionContainer | undefined = regionTarget.container;
+const drawnOnCanvas: CanvasInfo | undefined = drawnOn?.canvas;
+
+const framedRect = rectOf(el, { el: iframeEl, doc: document });
+
+// @ts-expect-error a region target has no canvas of its own; only its container may
+const wrongCanvas: CanvasInfo | undefined = regionTarget.canvas;
+// @ts-expect-error hosts is a chain of strings, not one string
+const wrongHosts: string | undefined = shadowInfo?.hosts;
+
 const state: SyncState = 'connected';
 const transport = createTransport({
   endpoint: 'http://127.0.0.1:7331',
@@ -148,6 +182,12 @@ const direct = stampJsx('<div/>', { path: 'src/App.jsx', typescript: false });
 const pre = earmarkPreprocess({ root: '.', dev: true });
 const preOut = pre.markup({ content: '<div/>', filename: 'src/Card.svelte' });
 const rel: string = relativePath('/repo/src/App.tsx', '/repo');
+
+// Component-name stamping, on by default and switchable off.
+const noComponent = stampSvelte('<div/>', { path: 'src/C.svelte', component: false });
+const jsxNoComponent = stampJsx('<div/>', { path: 'src/A.jsx', component: false });
+const componentAttr: 'data-earmark-component' = COMPONENT_ATTR;
+const chain: string[] = stampedComponents(el);
 const stampable: RegExp = STAMPABLE;
 
 // @ts-expect-error `path` is required — a stamp with no path is useless
@@ -167,4 +207,8 @@ export const used = [
   unsubscribe, listening, deliveries, adapterKind, server, mcp, tool, notATool, report, init,
   stampedCode, count, svelte, direct, preOut, rel, stampable, pluginName, strict, maybe, overlay,
   transport, hooks, STATUSES, store, http, checks,
+  noComponent, jsxNoComponent, componentAttr, chain,
+  canvasInfo, bufferPixel, bufferSize, contextKind, frameInfo, frameSelector,
+  shadowInfo, reach, hostChain, drawnOn, drawnOnCanvas, framedRect,
+  wrongCanvas, wrongHosts,
 ];
